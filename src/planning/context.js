@@ -1,8 +1,8 @@
 /* 独立规划消息组装：预设标记、私有宏、世界书扫描和指定插件的注入位置。 */
-import { resolvePreset } from './presets.js?v=0.4.0-dev.29';
-import { scanWorldInfo } from './world-info.js?v=0.4.0-dev.29';
-import { expandMacros } from './macros.js?v=0.4.0-dev.29';
-import { selectInjections } from './compatibility.js?v=0.4.0-dev.29';
+import { resolvePreset } from './presets.js?v=0.5.0';
+import { scanWorldInfo } from './world-info.js?v=0.5.0';
+import { expandMacros } from './macros.js?v=0.5.0';
+import { selectInjections } from './compatibility.js?v=0.5.0';
 const roles = ['system', 'user', 'assistant'];
 export async function buildPlanningContext({ snapshot, selection, worldState = {}, tokenize, random = Math.random, renderTemplate, serializeYaml }) {
     if (snapshot.capabilities?.groupChat) throw new Error('当前独立上下文暂未验证群聊角色轮换，请在单角色聊天中使用。');

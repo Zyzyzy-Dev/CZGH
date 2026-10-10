@@ -40,7 +40,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.29$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.0$/);
  // Resize preserves the frame and backdrop close never cancels generation.
  const panel=page.locator('#czgh-planner-container');
  const sizeBefore=await panel.boundingBox();
