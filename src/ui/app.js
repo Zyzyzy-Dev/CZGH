@@ -1,16 +1,16 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
-import { createId } from '../bridge/id.js?v=0.5.0';
-import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.5.0';
-import { button, el } from './components.js?v=0.5.0';
-import { renderView } from './views.js?v=0.5.0';
-import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.5.0';
+import { createId } from '../bridge/id.js?v=0.5.1-dev.1';
+import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.5.1-dev.1';
+import { button, el } from './components.js?v=0.5.1-dev.1';
+import { renderView } from './views.js?v=0.5.1-dev.1';
+import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.5.1-dev.1';
 setIcon(document.querySelector('#resume'),'reply');
 document.querySelector('#resume').addEventListener('click',()=>{document.querySelector('#resume').disabled=true;parent.postMessage({channel:CHANNEL,type:'resume'},location.origin);});
 setIcon(document.querySelector('#settings'),'settings');
 setIcon(document.querySelector('#show-preview'),'preview');
 generationIcon(document.querySelector('#cancel'),false);
 const pending=new Map();let state;let diagnostics;
-import {previewMessages,estimateTokens} from './diagnostics.js?v=0.5.0';
+import {previewMessages,estimateTokens} from './diagnostics.js?v=0.5.1-dev.1';
 document.querySelector('#compress-messages').addEventListener('change',()=>showDiagnostics(diagnostics));
 const ui={page:'preset',previous:'preset',scheme:{},apiDraft:{},models:[]};
 const app=document.querySelector('#app'),tabs=document.querySelector('#tabs'),status=document.querySelector('#status');
@@ -41,8 +41,8 @@ function draw(){
     document.querySelector('#settings').title=ui.page==='settings'?'返回':'设置';
     if(ui.page!=='preview')renderView(app,state,ui,act);
 }
-for(const [page,label] of [['preset','预设'],['world','世界书']]){const tab=button(label,()=>{ui.page=page;draw();});tab.dataset.page=page;tab.setAttribute('role','tab');tabs.append(tab);}
-document.querySelector('#settings').addEventListener('click',()=>{if(ui.page==='settings')ui.page=ui.previous;else{ui.previous=ui.page;ui.page='settings';}if(state)draw();});
+for(const [page,label] of [['preset','预设'],['world','世界书']]){const tab=button(label,()=>{ui.page=page;ui.previous=page;draw();});tab.dataset.page=page;tab.setAttribute('role','tab');tabs.append(tab);}
+document.querySelector('#settings').addEventListener('click',()=>{if(ui.page==='settings')ui.page=ui.previous;else{if(['preset','world'].includes(ui.page))ui.previous=ui.page;ui.page='settings';}if(state)draw();});
 document.querySelector('#appearance').addEventListener('click',()=>{parent.postMessage({channel:CHANNEL,type:'appearance'},location.origin);});
 const closePanel=()=>parent.postMessage({channel:CHANNEL,type:'close'},location.origin);
 document.querySelector('#close').addEventListener('click',closePanel);

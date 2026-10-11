@@ -1,17 +1,17 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.0';
-import { createApiSchemes } from './api-schemes.js?v=0.5.0';
-import { captureSources } from './sources.js?v=0.5.0';
-import { migrateSettings } from '../planning/core.js?v=0.5.0';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.0';
-import { resolvePreset } from '../planning/presets.js?v=0.5.0';
-import { adapters } from '../planning/compatibility.js?v=0.5.0';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.0';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.0';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.0';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.0';
-import { createCredentialStore } from './credential-store.js?v=0.5.0';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.0';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.1-dev.1';
+import { createApiSchemes } from './api-schemes.js?v=0.5.1-dev.1';
+import { captureSources } from './sources.js?v=0.5.1-dev.1';
+import { migrateSettings } from '../planning/core.js?v=0.5.1-dev.1';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.1-dev.1';
+import { resolvePreset } from '../planning/presets.js?v=0.5.1-dev.1';
+import { adapters } from '../planning/compatibility.js?v=0.5.1-dev.1';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.1-dev.1';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.1-dev.1';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.1-dev.1';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.1-dev.1';
+import { createCredentialStore } from './credential-store.js?v=0.5.1-dev.1';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.1-dev.1';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -78,7 +78,9 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 }
                 if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
                 for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];
-                await write(state); source = null;
+                await write(state);
+                // Entry/group switches only change selection, not captured source data.
+                if (['extraBooks','presetId','compatibilityIds'].some(key => key in payload)) source = null;
             } else if (method === 'api.save') {
                 let base = {};
                 if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);
