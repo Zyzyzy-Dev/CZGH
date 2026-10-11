@@ -1,5 +1,5 @@
 /* API 方案宿主服务：外部只读、自有方案副本持久化、禁止改变活动密钥。 */
-import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.5.1-dev.1';
+import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.5.1';
 
 export function createApiSchemes(host) {
     let queue = Promise.resolve();

@@ -2,7 +2,7 @@
 
 为 SillyTavern 独立生成写作规划，再把规划加入本轮正文请求。规划和正文可以使用不同的 API、模型及预设。
 
-**当前版本：0.5.1-dev.1（测试版）。** 测试仓库为 [CZGHCS](https://github.com/Zyzyzy-Dev/CZGHCS)，正式发布仓库为 [CZGH](https://github.com/Zyzyzy-Dev/CZGH)，包含完整源码。已有用户反馈规划与正文生成成功；自动化和模拟浏览器测试不能代替不同酒馆版本、模型及插件组合的实测。
+**当前版本：0.5.1。** 测试仓库为 [CZGHCS](https://github.com/Zyzyzy-Dev/CZGHCS)，正式发布仓库为 [CZGH](https://github.com/Zyzyzy-Dev/CZGH)，包含完整源码。已有用户反馈规划与正文生成成功；自动化和模拟浏览器测试不能代替不同酒馆版本、模型及插件组合的实测。
 
 ## 使用说明图
 

@@ -1,16 +1,16 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
-import { createId } from '../bridge/id.js?v=0.5.1-dev.1';
-import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.5.1-dev.1';
-import { button, el } from './components.js?v=0.5.1-dev.1';
-import { renderView } from './views.js?v=0.5.1-dev.1';
-import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.5.1-dev.1';
+import { createId } from '../bridge/id.js?v=0.5.1';
+import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.5.1';
+import { button, el } from './components.js?v=0.5.1';
+import { renderView } from './views.js?v=0.5.1';
+import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.5.1';
 setIcon(document.querySelector('#resume'),'reply');
 document.querySelector('#resume').addEventListener('click',()=>{document.querySelector('#resume').disabled=true;parent.postMessage({channel:CHANNEL,type:'resume'},location.origin);});
 setIcon(document.querySelector('#settings'),'settings');
 setIcon(document.querySelector('#show-preview'),'preview');
 generationIcon(document.querySelector('#cancel'),false);
 const pending=new Map();let state;let diagnostics;
-import {previewMessages,estimateTokens} from './diagnostics.js?v=0.5.1-dev.1';
+import {previewMessages,estimateTokens} from './diagnostics.js?v=0.5.1';
 document.querySelector('#compress-messages').addEventListener('change',()=>showDiagnostics(diagnostics));
 const ui={page:'preset',previous:'preset',scheme:{},apiDraft:{},models:[]};
 const app=document.querySelector('#app'),tabs=document.querySelector('#tabs'),status=document.querySelector('#status');
