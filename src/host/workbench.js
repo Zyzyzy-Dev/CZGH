@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.6';
-import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.6';
-import { captureSources } from './sources.js?v=0.5.2-dev.6';
-import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.6';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.6';
-import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.6';
-import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.6';
-import { databaseMemoryEntries, databaseMemoryMode } from '../planning/database-memory.js?v=0.5.2-dev.6';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.6';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.6';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.6';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.6';
-import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.6';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.6';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.7';
+import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.7';
+import { captureSources } from './sources.js?v=0.5.2-dev.7';
+import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.7';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.7';
+import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.7';
+import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.7';
+import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.2-dev.7';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.7';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.7';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.7';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.7';
+import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.7';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.7';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -50,7 +50,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
         const world = await import('/scripts/world-info.js');
         const c = context();
         const manager = c.getPresetManager?.('openai') || (await import('/scripts/preset-manager.js')).getPresetManager('openai');
-        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks, generationType, databaseBook: selection.compatibilityIds?.includes('database') ? selection.databaseBook || '' : undefined });
+        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks, generationType });
     }
     async function snapshot(refresh = false) {
         const settings = read();
@@ -58,8 +58,8 @@ export function createWorkbench({ context, headers, saveSettings }) {
         let preset = null, error = '';
         try { preset = resolvePreset(source, settings.selection); } catch (e) { error = e.message; }
         let databaseMode='ranked';try{databaseMode=databaseMemoryMode(source,settings.selection);}catch{}
-        return { databaseMode, settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error, databaseMemory: databaseMemoryEntries(source), databaseTarget: source.databaseTarget,
-            compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.id==='database' ? (source.databaseTarget ? '来源：'+source.databaseTarget : '未启用或未选择来源') : a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
+        return { databaseMode, settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error,
+            compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.id==='database' ? '跟随世界书设置' : a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
     }
     return {
         snapshot,
@@ -79,14 +79,12 @@ export function createWorkbench({ context, headers, saveSettings }) {
                     if (Object.values(payload[key]).some(v => typeof v !== 'boolean')) throw new Error('开关值必须为布尔值。');
                     state.selection[key] = structuredClone(payload[key]);
                 }
-                if (typeof payload.databaseBook === 'string') state.selection.databaseBook = payload.databaseBook.trim();
-                if (Number.isInteger(payload.databaseLimit) && payload.databaseLimit >= 1 && payload.databaseLimit <= 50) state.selection.databaseLimit = payload.databaseLimit;
                 if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
                 for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];
                 try { await write(state); } catch(error) { context().extensionSettings[ID]=previousSettings;throw error; }
                 if (payload.compact === true && Object.keys(payload).every(key => ['compact','promptOverrides','groupOverrides'].includes(key))) return { selectionSaved: true };
                 // Entry/group switches only change selection, not captured source data.
-                if (['extraBooks','presetId','compatibilityIds','databaseBook'].some(key => key in payload)) source = null;
+                if (['extraBooks','presetId','compatibilityIds'].some(key => key in payload)) source = null;
             } else if (method === 'api.save') {
                 let base = {};
                 if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);

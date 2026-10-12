@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { migrateSchemes, applySchemeOperation, schemeSelectionState, rememberScheme } from '../src/planning/schemes.js';
 
-test('obsolete database modes migrate to automatic routing without losing source or limits',()=>{
+test('obsolete database modes migrate to automatic routing and sources migrate into worldbook settings',()=>{
     for(const databaseMode of ['keywords','ranked','auto']){
-        const saved=migrateSchemes({});Object.assign(saved.selection,{databaseMode,databaseBook:'记忆',databaseLimit:12});
+        const saved=migrateSchemes({});Object.assign(saved.selection,{databaseMode,databaseBook:'记忆',databaseLimit:12,compatibilityIds:['database'],extraBooks:['已有书']});
         const migrated=migrateSchemes(saved);
         assert.equal(migrated.selection.databaseMode,undefined);
-        assert.equal(migrated.selection.databaseBook,'记忆');assert.equal(migrated.selection.databaseLimit,12);
+        assert.equal(migrated.selection.databaseBook,undefined);assert.equal(migrated.selection.databaseLimit,undefined);
+        assert.deepEqual(migrated.selection.extraBooks,['已有书','记忆']);assert.deepEqual(migrateSchemes(migrated),migrated);
         assert.equal(saved.selection.databaseMode,databaseMode);
     }
 });

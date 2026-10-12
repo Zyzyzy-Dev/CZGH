@@ -20,11 +20,11 @@ function setup(){
     }}};
     const planner=createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration:()=>counts.stops++,prepare:async({config,signal,data})=>{
         counts.prepares++;
-        const snapshot=await captureSources(host,{signal,databaseBook:config.selection.databaseBook,generationType:data.type});
+        const snapshot=await captureSources(host,{signal,generationType:data.type});
         const built=await buildPlanningContext({snapshot,selection:config.selection,tokenize:async text=>text.length});
         return {...built,request:{model:'planning',custom_url:'https://example.com/v1'}};
     }});
-    Object.assign(context.extensionSettings.czgh_external_planner,{enabled:true,selection:{compatibilityIds:['database'],databaseBook:'记忆',databaseLimit:1}});
+    Object.assign(context.extensionSettings.czgh_external_planner,{enabled:true,selection:{compatibilityIds:['database'],databaseLimit:1}});
     const fetch=async(_,options)=>{requests.push(JSON.parse(options.body));return {ok:true,json:async()=>({choices:[{message:{content:'<Think>前往港口</Think>'},finish_reason:'stop'}]})};};
     const generate=async()=>{
         for(const name of events.slice(0,3))await eventSource.emit(name);
@@ -59,7 +59,7 @@ test('without database recall, planning immediately selects relevant exported me
     try{
         await h.generate();assert.equal(h.requests.length,1);assert.equal(h.counts.stops,0);
         const prompt=h.requests[0].messages.map(x=>x.content).join('\n');
-        assert.match(prompt,/知道密道入口/);assert.doesNotMatch(prompt,/冰雕/);
+        assert.match(prompt,/知道密道入口/);assert.match(prompt,/冰雕/); // Both fit within the fixed 25-entry fallback cap.
         assert.equal(h.planner.getDiagnostics().sourceManifest.databaseMode,'ranked');
     }finally{globalThis.fetch=savedFetch;}
 });

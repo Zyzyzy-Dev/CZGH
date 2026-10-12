@@ -17,6 +17,31 @@ function fixture(){
 }
 const build=(snapshot,selection={})=>buildPlanningContext({snapshot,selection,tokenize:async text=>text.length});
 
+test('database fallback combines enabled bound and extra books, deduplicates and caps all sources at 25',async()=>{
+    const snapshot=fixture();snapshot.userInput='目标线索';snapshot.history=[];
+    const book=(prefix)=>({entries:Object.fromEntries(Array.from({length:20},(_,i)=>[i,{uid:i,comment:'总结条目'+i,content:prefix+i,constant:true}]))});
+    snapshot.books={聊天:book('普通内容'),额外:book('目标线索'),关闭:book('目标线索不应读取'),未挂载:book('目标线索未挂载')};
+    snapshot.bindings={chat:['聊天'],character:['关闭'],global:['聊天']};
+    const selection={compatibilityIds:['database'],extraBooks:['额外','聊天'],bookOverrides:{关闭:false},entryOverrides:{'["额外",0]':false},databaseLimit:50};
+    const before=structuredClone(snapshot),result=await build(snapshot,selection);
+    assert.equal(result.sourceManifest.database.length,25);
+    assert.equal(result.sourceManifest.database.filter(([book])=>book==='额外').length,19);
+    assert.deepEqual(result.sourceManifest.database.filter(([book])=>book==='聊天'),Array.from({length:6},(_,i)=>['聊天',i+14]));
+    const text=result.messages.map(m=>m.content).join('\n');assert.doesNotMatch(text,/不应读取|未挂载/);
+    assert.equal(text.split('目标线索19').length-1,1);assert.deepEqual(snapshot,before);
+    const empty=await build({...snapshot,bindings:{},books:{}},{compatibilityIds:['database']});
+    assert.deepEqual(empty.sourceManifest.database,[],'no database source does not block normal planning');
+});
+
+test('code recall reads more than 25 matching memos across books without a fallback cap',async()=>{
+    const snapshot=fixture();snapshot.books={};snapshot.bindings={chat:['甲'],global:['甲']};
+    for(const [book,offset] of [['甲',0],['乙',15]])snapshot.books[book]={entries:Object.fromEntries(Array.from({length:15},(_,i)=>[i,{uid:i,comment:'总结条目'+i,content:'详细记忆'+(offset+i),key:['AM'+(1000+offset+i)],constant:false}]))};
+    snapshot.userInput='<recall>'+Array.from({length:30},(_,i)=>'AM'+(1000+i)).join(' ')+'</recall>';snapshot.history=[{role:'user',content:snapshot.userInput}];
+    const result=await build(snapshot,{compatibilityIds:['database'],extraBooks:['乙'],databaseLimit:1});
+    assert.equal(result.sourceManifest.databaseMode,'keywords');assert.equal(result.sourceManifest.database.length,30);
+    assert.ok(!result.sourceManifest.plugins.includes('database_memory'));
+});
+
 test('explicit database source reads inactive memos once, respects private overrides and never mutates source',async()=>{
     const snapshot=fixture();snapshot.databaseTarget='记忆';
     snapshot.books.记忆.entries[3].comment='ACU-[当前卡]-TavernDB-ACU-CustomExport-纪要-3';
@@ -31,14 +56,12 @@ test('explicit database source reads inactive memos once, respects private overr
     assert.ok(!off.messages.some(m=>m.content.includes('昨晚约定会面')));
 });
 
-test('database source keeps recent book entries within limit and refuses a missing explicit target',async()=>{
-    const snapshot=fixture();snapshot.databaseTarget='记忆';
-    snapshot.books.记忆.entries[7]={uid:7,comment:'总结条目7',content:'较新纪要',constant:true,position:0};
-    const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1});
-    const text=result.messages.map(m=>m.content).join('\n');
-    assert.ok(text.includes('较新纪要'));assert.ok(!text.includes('昨晚约定会面'));
-    snapshot.databaseTarget='不存在';
-    await assert.rejects(build(snapshot,{compatibilityIds:['database']}),/数据库.*世界书/);
+test('database source uses a fixed global cap of 25 and ignores obsolete source and limit settings',async()=>{
+    const snapshot=fixture();snapshot.books.记忆.entries=Object.fromEntries(Array.from({length:30},(_,i)=>[i+1,{uid:i+1,comment:'总结条目'+(i+1),content:'纪要'+(i+1),constant:true}]));
+    snapshot.userInput='zzzz';snapshot.history=[];
+    const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1,databaseBook:'不存在'});
+    assert.deepEqual(result.sourceManifest.database,Array.from({length:25},(_,i)=>['记忆',i+6]));
+    assert.equal(result.messages.map(m=>m.content).join(' ').split('纪要30').length-1,1);
 });
 
 test('independent database memory is included in input budget and rejects selected query templates',async()=>{
@@ -99,12 +122,13 @@ test('database recall selects relevant old memos using names and keyword tags, t
         2:{uid:2,comment:'总结条目2',content:'刚刚吃了午饭',disable:true},
         3:{uid:3,comment:'总结条目1',content:'灯塔钥匙放在抽屉里',disable:true},
     };
+    for(let uid=4;uid<=28;uid++)snapshot.books.记忆.entries[uid]={uid,comment:'总结条目'+uid,content:'无关内容',disable:true};
     snapshot.userInput='寻找灯塔钥匙';
     const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:2});
-    assert.deepEqual(result.sourceManifest.database,[['记忆',1],['记忆',3]]);
+    assert.deepEqual(result.sourceManifest.database,[['记忆',1],['记忆',3],...Array.from({length:23},(_,i)=>['记忆',i+6])]);
     snapshot.userInput='zzzz';snapshot.history=[];
     const fallback=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1});
-    assert.deepEqual(fallback.sourceManifest.database,[['记忆',3]],'ties prefer later book position, not numeric suffix');
+    assert.deepEqual(fallback.sourceManifest.database,Array.from({length:25},(_,i)=>['记忆',i+4]),'ties prefer later book position, not numeric suffix');
 });
 
 test('database recall query uses six AI replies, strips non-content blocks and caps each tail',()=>{

@@ -2,18 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureSources } from '../src/host/sources.js';
 
-test('database target is read only when selected, explicit book never falls back and stays outside native bindings',async()=>{
+test('database books are loaded through regular bindings and extra books only',async()=>{
     const reads=[];
-    const ctx={chatId:'c',characterId:0,characters:[{data:{extensions:{world:'主书'}}}],chat:[],chatMetadata:{}};
-    const host={context:()=>ctx,manager:{getPresetList:()=>({}),getSelectedPresetName:()=>''},world:{loadWorldInfo:async name=>{reads.push(name);if(name==='缺失')throw Error('missing');return{entries:{}};}},openai:{},powerUser:{}};
-    assert.equal((await captureSources(host)).databaseTarget,'');
-    assert.deepEqual(reads,['主书']);reads.length=0;
-    const snapshot=await captureSources(host,{databaseBook:'纪要书'});
-    assert.equal(snapshot.databaseTarget,'纪要书');assert.deepEqual(reads,['主书','纪要书']);
-    assert.deepEqual(snapshot.bindings.character,['主书']);
-    assert.equal((await captureSources(host,{databaseBook:''})).databaseTarget,'主书');
-    await assert.rejects(captureSources(host,{databaseBook:'缺失'}),/missing/);
+    const ctx={chatId:'c',characterId:0,characters:[{data:{extensions:{world:'主书'}}}],chat:[],chatMetadata:{world_info:'聊天书'}};
+    const host={context:()=>ctx,manager:{getPresetList:()=>({}),getSelectedPresetName:()=>''},world:{loadWorldInfo:async name=>{reads.push(name);return{entries:{}};}},openai:{},powerUser:{}};
+    const snapshot=await captureSources(host,{extraBooks:['纪要书','聊天书'],databaseBook:'旧来源'});
+    assert.deepEqual(reads,['主书','聊天书','纪要书']);
+    assert.equal(snapshot.databaseTarget,undefined);
+    assert.deepEqual(snapshot.bindings.chat,['聊天书']);
 });
+
 test('source capture clones inputs, includes auxiliary/chat books and rejects a switched chat',async()=>{
     const ctx={chatId:'chat',characterId:0,characters:[{avatar:'c.png',name:'角色',data:{extensions:{world:'primary'}}}],chat:[{is_user:true,mes:'hello'}],chatMetadata:{world_info:'chatbook'},extensionPrompts:{foreign:{value:'secret',filter:()=>true}},name1:'玩家',name2:'角色'};
     const world={world_names:['primary','aux','global','chatbook'],selected_world_info:['global'],world_info:{charLore:[{name:'c',extraBooks:['aux']}]},getWorldInfoSettings:()=>({}),loadWorldInfo:async()=>({entries:{}})};

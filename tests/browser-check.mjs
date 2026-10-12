@@ -41,26 +41,19 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2-dev\.6$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2-dev\.7$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
  await frame.locator('#close').click();await page.locator('#czgh-planner-menu').click();
  await frame.locator('#settings').click();
  await frame.getByLabel('数据库',{exact:true}).check();
- await frame.getByText('数据库记忆',{exact:true}).waitFor();
- await frame.getByText(/已读取 1 个数据库导出条目/).waitFor();
- assert.equal(await frame.getByLabel('数据库读取模式',{exact:true}).count(),0);
- assert.equal(await frame.getByText(/构画式|编码触发优先|世界书扫描（/).count(),0);
- await frame.getByLabel('最多读取纪要条数',{exact:true}).waitFor();
- await frame.getByLabel('数据库纪要世界书',{exact:true}).selectOption('设定集');
- await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseBook==='设定集');
- await frame.getByText('来源：设定集',{exact:true}).waitFor();
- await frame.getByLabel('最多读取纪要条数',{exact:true}).fill('12');
- await frame.getByLabel('最多读取纪要条数',{exact:true}).press('Tab');
- await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseLimit===12);
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.compatibilityIds.includes('database'));
+ for(const label of ['数据库读取模式','最多读取纪要条数','数据库纪要世界书'])assert.equal(await frame.getByLabel(label,{exact:true}).count(),0);
+ assert.equal(await frame.getByText('数据库记忆',{exact:true}).count(),0);
+ await frame.getByText('跟随世界书设置',{exact:true}).waitFor();
  await frame.getByLabel('数据库',{exact:true}).uncheck();
- await frame.getByLabel('数据库纪要世界书',{exact:true}).waitFor({state:'hidden'});
+ await page.waitForFunction(()=>!context.extensionSettings.czgh_external_planner.selection.compatibilityIds.includes('database'));
  await page.reload();await page.locator('#czgh-planner-menu').click();
  await frame.getByLabel('选择预设',{exact:true}).waitFor();
  // Resize preserves the frame and backdrop close never cancels generation.

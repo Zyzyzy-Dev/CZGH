@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.6';
-import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.6';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.6';
-import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.6';
-import { editAdditional } from './additional-editor.js?v=0.5.2-dev.6';
-import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.6';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.6';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.7';
+import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.7';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.7';
+import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.7';
+import { editAdditional } from './additional-editor.js?v=0.5.2-dev.7';
+import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.7';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.7';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -78,16 +78,6 @@ function buildView(root, state, ui, act, liveRoot) {
         api.append(check('流式输出规划',s.stream,v=>act('settings.update',{stream:v})));root.append(section('通用设置',api));
         const compatibility=el('div','section-body');
         for(const [category,label] of [['memory','记忆插件'],['plot','剧情规划插件']]){compatibility.append(el('h3','',label));for(const plugin of state.compatibility.filter(p=>p.category===category)){const line=el('div','plugin-row');line.append(check(plugin.name,selection.compatibilityIds.includes(plugin.id),v=>act('selection.update',{compatibilityIds:v?[...selection.compatibilityIds,plugin.id]:selection.compatibilityIds.filter(x=>x!==plugin.id)})),el('small','muted',plugin.status));compatibility.append(line);}}
-        const databaseCount=state.databaseMemory?.length||0;
-        if(selection.compatibilityIds.includes('database')){
-            compatibility.append(el('h3','','数据库记忆'));
-            const selected=selection.databaseBook||'';
-            const options=[{id:'',name:'跟随角色主世界书'},...state.bookNames.map(name=>({id:name,name}))];
-            if(selected&&!state.bookNames.includes(selected))options.push({id:selected,name:selected+'（当前不可用）'});
-            compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})));
-            compatibility.append(field('最多读取纪要条数',Math.min(50,selection.databaseLimit??20),value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(50,Math.trunc(value)||20))}),'number'),el('p','hint','自动处理：数据库先召回并写入编码，再按编码读取详细纪要；没有编码召回时，自动筛选相关纪要。条数上限仅用于后者。'));
-            compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。`:'尚未找到数据库记忆，请确认已导出到所选世界书。'));
-        }
         root.append(section('插件兼容',compatibility));
         const syntax=el('div','section-body');
         syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
@@ -113,10 +103,10 @@ function buildView(root, state, ui, act, liveRoot) {
         for(const item of state.preset?.display||[]){if(item.type==='prompt'){const entry=item.entry;root.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));continue;}const group=item.group;const content=el('div','section-body');const groupToggle=toggleSwitch('启用 '+group.name,group.enabled,value=>change('groupOverrides',group.id,value));for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));const card=section(group.name,content,ui.collapsed?.[group.id]??group.collapsed);card.dataset.viewKey='preset:'+state.preset.id+':'+group.id;card.classList.add('switch-card');const summary=card.querySelector('summary');summary.replaceChildren(el('span','group-title',group.name),groupToggle);card.addEventListener('toggle',()=>{if(card.isConnected)(ui.collapsed??={})[group.id]=!card.open;});root.append(card);}
     } else {
         root.append(toolbar('world'),saveHint('world'));
-        const bindings=[['全局世界书',state.bindings.global],['角色世界书',state.bindings.character],['用户角色世界书',state.bindings.persona],['数据库纪要世界书',state.databaseTarget?[state.databaseTarget]:[]],['聊天附加世界书',state.bindings.chat],['插件开启的世界书',selection.extraBooks]];
+        const bindings=[['全局世界书',state.bindings.global],['角色世界书',state.bindings.character],['用户角色世界书',state.bindings.persona],['聊天附加世界书',state.bindings.chat],['插件开启的世界书',selection.extraBooks]];
         for(const [label,names] of bindings){if(!names?.length&& !['全局世界书','角色世界书','聊天附加世界书','插件开启的世界书'].includes(label))continue;const content=el('div','section-body');
             if(!names?.length)content.append(el('p','hint','尚未挂载世界书'));
-            for(const name of names||[]){const book=el('details','book');book.dataset.viewKey='book:'+label+':'+name;book.open=ui.openBooks?.[name]??false;book.addEventListener('toggle',()=>{if(book.isConnected)(ui.openBooks??={})[name]=book.open;});const heading=el('summary','book-heading');heading.append(el('span','',name),toggleSwitch(name,selection.bookOverrides[name]!==false,v=>change('bookOverrides',name,v)));book.append(heading);for(const [uid,entry] of Object.entries(state.books[name]?.entries||{})){const key=entryKey(name,entry.uid??uid);book.append(row(entry.comment||`条目 ${uid}`,entry.content,selection.entryOverrides[key]??(selection.compatibilityIds.includes('database')&&state.databaseMode!=='keywords'&&name===state.databaseTarget&&isDatabaseMemoEntry(entry)?true:!entry.disable),v=>change('entryOverrides',key,v)));}content.append(book);}
+            for(const name of names||[]){const book=el('details','book');book.dataset.viewKey='book:'+label+':'+name;book.open=ui.openBooks?.[name]??false;book.addEventListener('toggle',()=>{if(book.isConnected)(ui.openBooks??={})[name]=book.open;});const heading=el('summary','book-heading');heading.append(el('span','',name),toggleSwitch(name,selection.bookOverrides[name]!==false,v=>change('bookOverrides',name,v)));book.append(heading);for(const [uid,entry] of Object.entries(state.books[name]?.entries||{})){const key=entryKey(name,entry.uid??uid);book.append(row(entry.comment||`条目 ${uid}`,entry.content,selection.entryOverrides[key]??(selection.compatibilityIds.includes('database')&&state.databaseMode!=='keywords'&&isDatabaseMemoEntry(entry)?true:!entry.disable),v=>change('entryOverrides',key,v)));}content.append(book);}
             root.append(section(label,content));}
         const add=button('添加世界书',()=>{
             const dialog=el('dialog','detail-dialog');dialog.append(el('h2','','添加世界书'));const search=el('input');search.placeholder='搜索世界书';search.setAttribute('aria-label','搜索世界书');const list=el('div','book-picker');
