@@ -50,3 +50,10 @@ test('swipe excludes replaced response before history macros, regenerate uses al
     ctx.chat=[{mes:'保留的上一条回复'}];
     assert.equal((await captureSources(host,{generationType:'regenerate'})).history.length,1);
 });
+
+test('chat attachments accept multiple world books and normalize names before loading',async()=>{
+ const reads=[];const ctx={chatId:'c',chat:[],chatMetadata:{world_info:[' A ','B','A','']}};
+ const host={context:()=>ctx,manager:{getPresetList:()=>({})},world:{loadWorldInfo:async name=>{reads.push(name);return {entries:{}};}},openai:{},powerUser:{}};
+ const snapshot=await captureSources(host);
+ assert.deepEqual(snapshot.bindings.chat,['A','B']);assert.deepEqual(reads,['A','B']);
+});

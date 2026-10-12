@@ -1,6 +1,6 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.5.2-dev.3';
-import { captureAuthorNote } from '../planning/author-note.js?v=0.5.2-dev.3';
+import { createId } from '../bridge/id.js?v=0.5.2-dev.4';
+import { captureAuthorNote } from '../planning/author-note.js?v=0.5.2-dev.4';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;
@@ -27,7 +27,7 @@ export async function captureSources(host, { signal, extraBooks = [], generation
     const bindings = {
         global: [...(world.selected_world_info || world.world_info?.globalSelect || [])],
         character: [...new Set([primary, ...(world.world_info?.charLore?.find(x => x.name === file)?.extraBooks || [])].filter(Boolean))],
-        chat: context.chatMetadata?.world_info ? [context.chatMetadata.world_info] : [],
+        chat: [...new Set([context.chatMetadata?.world_info].flat().filter(name=>typeof name==='string').map(name=>name.trim()).filter(Boolean))],
         persona: persona ? [persona] : [],
     };
     const books = {};

@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.3';
-import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.3';
-import { captureSources } from './sources.js?v=0.5.2-dev.3';
-import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.3';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.3';
-import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.3';
-import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.3';
-import { databaseMemoryEntries } from '../planning/database-memory.js?v=0.5.2-dev.3';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.3';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.3';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.3';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.3';
-import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.3';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.3';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.4';
+import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.4';
+import { captureSources } from './sources.js?v=0.5.2-dev.4';
+import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.4';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.4';
+import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.4';
+import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.4';
+import { databaseMemoryEntries, databaseMemoryMode } from '../planning/database-memory.js?v=0.5.2-dev.4';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.4';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.4';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.4';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.4';
+import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.4';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.4';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -57,7 +57,8 @@ export function createWorkbench({ context, headers, saveSettings }) {
         if (!source || refresh) source = await capture(undefined, settings.selection.extraBooks, undefined, settings.selection);
         let preset = null, error = '';
         try { preset = resolvePreset(source, settings.selection); } catch (e) { error = e.message; }
-        return { settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error, databaseMemory: databaseMemoryEntries(source), databaseTarget: source.databaseTarget,
+        let databaseMode='ranked';try{databaseMode=databaseMemoryMode(source,settings.selection);}catch{}
+        return { databaseMode, settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error, databaseMemory: databaseMemoryEntries(source), databaseTarget: source.databaseTarget,
             compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.id==='database' ? (source.databaseTarget ? '来源：'+source.databaseTarget : '未启用或未选择来源') : a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
     }
     return {
@@ -79,6 +80,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
                     state.selection[key] = structuredClone(payload[key]);
                 }
                 if (typeof payload.databaseBook === 'string') state.selection.databaseBook = payload.databaseBook.trim();
+                if (['auto','keywords','ranked'].includes(payload.databaseMode)) state.selection.databaseMode = payload.databaseMode;
                 if (Number.isInteger(payload.databaseLimit) && payload.databaseLimit >= 1 && payload.databaseLimit <= 50) state.selection.databaseLimit = payload.databaseLimit;
                 if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
                 for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];

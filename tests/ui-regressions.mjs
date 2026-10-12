@@ -84,7 +84,11 @@ export async function checkUiRegressions(page, frame) {
     await page.setViewportSize({width:1100,height:900});
     for(const [tab,label] of [['预设','长列表 79'],['世界书','世界条目 79']]){
         await frame.getByRole('tab',{name:tab,exact:true}).click();
-        if(tab==='世界书')await frame.locator('.book-heading').first().click();
+        if(tab==='世界书'){
+            const summaries=await frame.locator('#app > details > summary').allTextContents();
+            assert.equal(summaries.at(-2),'聊天附加世界书');assert.equal(summaries.at(-1),'插件开启的世界书');
+            await frame.locator('.book-heading').first().click();
+        }
         const item=frame.getByRole('switch',{name:label,exact:true});
         await item.scrollIntoViewIfNeeded();
         const scroll=await frame.locator('#app').evaluate(el=>el.scrollTop);

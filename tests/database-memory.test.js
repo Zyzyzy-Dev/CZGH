@@ -113,3 +113,28 @@ test('database recall query uses six AI replies, strips non-content blocks and c
     assert.ok(query.startsWith('当前问题'));assert.ok(!query.includes('秘密'));assert.ok(!query.includes('不要这个'));
     assert.equal(query.split('\n').at(-1).length,700);
 });
+
+test('auto database mode routes current recall codes through chat world keyword scan without ranking limit',async()=>{
+ const snapshot=fixture();snapshot.bindings={chat:['记忆']};snapshot.databaseTarget='记忆';
+ snapshot.books.记忆.entries={1:{uid:1,comment:'总结条目1',content:'编码命中详细纪要',key:['AM0001'],constant:false},2:{uid:2,comment:'总结条目2',content:'不相关纪要',key:['AM0002'],constant:false}};
+ snapshot.userInput='继续 <recall>AM0001</recall>';snapshot.history=[{role:'user',content:snapshot.userInput}];
+ const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1});
+ assert.equal(result.sourceManifest.databaseMode,'keywords');
+ assert.ok(result.messages.some(m=>m.content.includes('编码命中详细纪要')));
+ assert.ok(!result.messages.some(m=>m.content.includes('不相关纪要')));
+ assert.ok(!result.sourceManifest.plugins.includes('database_memory'));
+ const missing=structuredClone(snapshot);missing.userInput='继续 <recall>AM9999</recall>';missing.history[0].content=missing.userInput;
+ const empty=await build(missing,{compatibilityIds:['database']});assert.deepEqual(empty.sourceManifest.database,[]);
+ const off=await build(snapshot,{compatibilityIds:['database'],entryOverrides:{'["记忆",1]':false}});assert.deepEqual(off.sourceManifest.database,[]);
+ const fallback=structuredClone(snapshot);fallback.userInput='普通输入';fallback.history=[{role:'user',content:'普通输入'}];
+ assert.equal((await build(fallback,{compatibilityIds:['database']})).sourceManifest.databaseMode,'ranked');
+});
+
+test('database auto selection ignores old recall blocks and refuses incomplete current results',async()=>{
+ const snapshot=fixture();snapshot.databaseTarget='记忆';snapshot.userInput='当前普通输入';
+ snapshot.history.unshift({role:'user',content:'<recall>AM0001</recall>'});
+ assert.equal((await build(snapshot,{compatibilityIds:['database']})).sourceManifest.databaseMode,'ranked');
+ snapshot.userInput='<recall>AM0001';await assert.rejects(build(snapshot,{compatibilityIds:['database']}),/尚未完整/);
+ snapshot.userInput='<recall></recall>';assert.equal((await build(snapshot,{compatibilityIds:['database']})).sourceManifest.databaseMode,'keywords');
+ snapshot.userInput='自定义编码格式';assert.equal((await build(snapshot,{compatibilityIds:['database'],databaseMode:'keywords'})).sourceManifest.databaseMode,'keywords');
+});
