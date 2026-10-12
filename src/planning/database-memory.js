@@ -1,5 +1,5 @@
 /* 数据库 1.2.9 世界书导出识别：沿用独立扫描，不读取原始全表或触发数据库更新。 */
-import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.2-dev.4';
+import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.2-dev.5';
 const generatedName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?TavernDB-ACU-(?:ReadableDataTable|OutlineTable|ImportantPersonsIndex|PersonsHeader|CustomExport(?:-.+)?|WrapperStart|WrapperEnd|MemoryStart|MemoryEnd)$/;
 const rowName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?(?:重要人物条目|小总结条目|总结条目)\d+$/;
 const unresolvedTemplate=/\{\[\s*(?:db\.|sql\b)|<if\s+(?:seed|cell|cond|db|sql)\s*=|<(?:calc|max|min|random)(?:\s|>)|\$v:/i;
@@ -7,23 +7,38 @@ const key=(book,uid)=>JSON.stringify([book,String(uid)]);
 const memoName=/^(?:ACU-\[[^\r\n]*?\]-)?(?:外部导入-)?(?:TavernDB-ACU-CustomExport-纪要-|(?:小总结条目|总结条目)[\s_#-]*)(\d+)(?:\s.*)?$/i;
 export const isDatabaseMemoEntry=entry=>memoName.test(String(entry.name||entry.comment||'').trim());
 
-export function databaseMemoryMode(snapshot,selection){
-    if(['keywords','ranked'].includes(selection.databaseMode))return selection.databaseMode;
+export function databaseMemoryDecision(snapshot,selection){
+    if(selection.databaseMode==='keywords')return {mode:'keywords',reason:'manual-worldbook'};
+    if(selection.databaseMode==='ranked')return {mode:'ranked',reason:'manual-ranked'};
     const input=String(snapshot.userInput??snapshot.history?.findLast(m=>m.role==='user')?.content??'');
-    // A complete recall block is an explicit result, including an empty result.
-    if(/<recall\b[^>]*>[\s\S]*?<\/recall\s*>/i.test(input))return 'keywords';
-    if(/<recall\b/i.test(input))throw Error('数据库召回块尚未完整写入，本轮规划已停止，请待召回完成后重试。');
+    // Validate all blocks before accepting any result: a completed block can be
+    // followed by a second block that is still streaming. Nested blocks are invalid.
+    let open=false,blocks=0;
+    const fail=()=>{throw Error('数据库召回块尚未完整写入或格式无效，本轮规划已停止，请待召回完成后重试。');};
+    const remainder=input.replace(/<\/?recall\b[^>]*>/gi,tag=>{
+        if(/^<\/recall\s*>$/i.test(tag)){if(!open)fail();open=false;blocks++;}
+        else if(/^<recall(?:\s[^>]*)?>$/i.test(tag)&&!tag.endsWith('/>')){if(open)fail();open=true;}
+        else fail();
+        return '';
+    });
+    if(open||/<\/?recall\b/i.test(remainder))fail();
+    if(blocks)return {mode:'keywords',reason:'recall-block'};
     const codes=new Set((input.match(/\bAM\d+\b/gi)||[]).map(code=>code.toUpperCase()));
-    for(const data of Object.values(snapshot.books||{}))for(const entry of Object.values(data.entries||{})){
-        if(!isDatabaseMemoEntry(entry))continue;
-        const keys=[entry.key,entry.keys,entry.strategy?.keys].flat().filter(x=>typeof x==='string');
-        if(keys.some(k=>codes.has(k.trim().toUpperCase())))return 'keywords';
+    const books=new Set([...Object.values(snapshot.bindings||{}).flat(),...(selection.extraBooks||[]),snapshot.databaseTarget||selection.databaseBook||snapshot.character?.data?.extensions?.world].filter(Boolean));
+    for(const book of books){
+        if(selection.bookOverrides?.[book]===false)continue;
+        for(const [uid,entry] of Object.entries(snapshot.books?.[book]?.entries||{})){
+            if(!isDatabaseMemoEntry(entry)||!(selection.entryOverrides?.[JSON.stringify([book,entry.uid??uid])]??!entry.disable))continue;
+            const keys=[entry.key,entry.keys,entry.strategy?.keys].flat().filter(x=>typeof x==='string');
+            if(keys.some(k=>codes.has(k.trim().toUpperCase())))return {mode:'keywords',reason:'matched-codes'};
+        }
     }
-    return 'ranked';
+    return {mode:'ranked',reason:'no-recall-signal'};
 }
+export const databaseMemoryMode=(snapshot,selection)=>databaseMemoryDecision(snapshot,selection).mode;
 export function prepareDatabaseMemory(snapshot,selection){
-    if(!selection.compatibilityIds?.includes('database'))return {snapshot,selected:[],mode:'disabled'};
-    const mode=databaseMemoryMode(snapshot,selection);
+    if(!selection.compatibilityIds?.includes('database'))return {snapshot,selected:[],mode:'disabled',reason:'disabled'};
+    const {mode,reason}=databaseMemoryDecision(snapshot,selection);
     if(mode==='keywords'){
         const copy=structuredClone(snapshot),target=snapshot.databaseTarget||selection.databaseBook;
         // Explicitly selected database books participate even when not natively attached.
@@ -32,7 +47,7 @@ export function prepareDatabaseMemory(snapshot,selection){
             copy.bindings={...copy.bindings,global:[...(copy.bindings?.global||[]),target]};
         }
         copy.databaseKeywordMode=true;
-        return {snapshot:copy,selected:[],mode};
+        return {snapshot:copy,selected:[],mode,reason};
     }
     const book=snapshot.databaseTarget||selection.databaseBook||snapshot.character?.data?.extensions?.world;
     if(!book||!snapshot.books?.[book])throw Error('数据库纪要世界书不可用，请在插件兼容中选择正确的世界书。');
@@ -51,7 +66,7 @@ export function prepareDatabaseMemory(snapshot,selection){
     const picked=selectDatabaseMemos(candidates,databaseRecallQuery(snapshot),limit);
     for(const entry of picked)if(unresolvedTemplate.test(entry.content))throw Error(`数据库纪要「${book} / ${entry.name}」包含尚未支持的查询或条件模板，请使用普通文本导出。`);
     copy.injections={...copy.injections,database_memory:{value:picked.map(e=>e.content).join('\n\n'),position:1,depth:0,role:0,scan:false}};
-    return {snapshot:copy,selected:picked.map(e=>[book,e.uid]),mode};
+    return {snapshot:copy,selected:picked.map(e=>[book,e.uid]),mode,reason};
 }
 
 export function databaseMemoryEntries(snapshot){

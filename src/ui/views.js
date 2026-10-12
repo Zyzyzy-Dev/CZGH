@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.4';
-import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.4';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.4';
-import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.4';
-import { editAdditional } from './additional-editor.js?v=0.5.2-dev.4';
-import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.4';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.4';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.5';
+import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.5';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.5';
+import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.5';
+import { editAdditional } from './additional-editor.js?v=0.5.2-dev.5';
+import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.5';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.5';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -81,13 +81,15 @@ function buildView(root, state, ui, act, liveRoot) {
         const databaseCount=state.databaseMemory?.length||0;
         compatibility.append(el('h3','','数据库记忆（世界书导出）'));
         if(selection.compatibilityIds.includes('database')){
-            compatibility.append(select('数据库读取模式',[{id:'auto',name:'自动：编码触发优先，否则相关性筛选'},{id:'keywords',name:'编码触发（遵循世界书扫描）'},{id:'ranked',name:'构画式相关性筛选'}],selection.databaseMode||'auto',value=>act('selection.update',{databaseMode:value})));
+            compatibility.append(select('数据库读取模式',[{id:'auto',name:'自动：编码触发优先，否则相关性筛选'},{id:'keywords',name:'世界书扫描（编码／蓝灯）'},{id:'ranked',name:'构画式相关性筛选'}],selection.databaseMode||'auto',value=>act('selection.update',{databaseMode:value})));
             const selected=selection.databaseBook||'';
             const options=[{id:'',name:'跟随角色主世界书'},...state.bookNames.map(name=>({id:name,name}))];
             if(selected&&!state.bookNames.includes(selected))options.push({id:selected,name:selected+'（当前不可用）'});
-            compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})),field('最多读取纪要条数',Math.min(50,selection.databaseLimit??20),value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(50,Math.trunc(value)||20))}),'number'));
+            compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})));
+            if(selection.databaseMode!=='keywords')compatibility.append(field('最多读取纪要条数',Math.min(50,selection.databaseLimit??20),value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(50,Math.trunc(value)||20))}),'number'),el('p','hint','条数只用于构画式筛选；自动转入世界书扫描时不使用此上限。'));
+            else compatibility.append(el('p','hint','沿用世界书当前状态：蓝灯直接参与扫描，绿灯按关键词触发；遵守条目启用、扫描条件和预算，不额外筛选纪要。适合数据库已将召回结果写入编码或蓝灯的配置。'));
         }
-        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。普通世界书仍按扫描规则使用；开启数据库纪要后，按构画规则从所选书筛选与当前输入及最近 6 条可见 AI 回复相关的纪要。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','自动模式识别当前用户输入中的完整 recall 块或已知 AM 编码后走世界书扫描，不再额外筛选；未识别时采用构画的词项重合评分，默认 20 条、最多 50 条；同分优先靠后的条目，选中后按原顺序注入，不额外调用 API。这不是数据库交火召回，不保证与正文使用同一批记忆。直接读取不依赖原生蓝绿灯，但遵守规划世界书页的手动关闭；不代替数据库执行召回，不支持查询模板及零层模式。'));
+        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。实际读取方式由所选模式和本轮召回信号决定；预览「资料来源」可查看采用路径。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','自动模式检查本轮用户输入的完整 recall 块或可用纪要的 AM 关键词；无信号时按构画规则筛选，默认 20 条、最多 50 条。蓝灯也可能是常驻设置，因此自动模式不会仅凭蓝灯切换；使用数据库蓝灯召回时请选择「世界书扫描」。不额外调用 API，不代替数据库执行召回，不保证与正文完全相同；两种路径均遵守规划端手动关闭，不支持查询模板和零层模式。'));
         root.append(section('插件兼容',compatibility));
         const syntax=el('div','section-body');
         syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));

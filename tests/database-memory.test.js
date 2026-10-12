@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { databaseRecallQuery, recallProse } from '../src/planning/database-recall.js';
 import { buildPlanningContext } from '../src/planning/context.js';
+import { captureSources } from '../src/host/sources.js';
 
 function fixture(){
     const entry=(uid,comment,content,options={})=>({uid,comment,content,constant:true,position:0,order:100,...options});
@@ -137,4 +138,59 @@ test('database auto selection ignores old recall blocks and refuses incomplete c
  snapshot.userInput='<recall>AM0001';await assert.rejects(build(snapshot,{compatibilityIds:['database']}),/尚未完整/);
  snapshot.userInput='<recall></recall>';assert.equal((await build(snapshot,{compatibilityIds:['database']})).sourceManifest.databaseMode,'keywords');
  snapshot.userInput='自定义编码格式';assert.equal((await build(snapshot,{compatibilityIds:['database'],databaseMode:'keywords'})).sourceManifest.databaseMode,'keywords');
+});
+
+test('worldbook mode follows blue-light memos without codes, ranking caps or duplicates across turns',async()=>{
+ const snapshot=fixture();snapshot.databaseTarget='记忆';snapshot.userInput='继续';snapshot.history=[{role:'user',content:'继续'}];
+ snapshot.bindings={chat:['记忆'],global:['记忆']};
+ snapshot.books.记忆.entries={
+  1:{uid:1,comment:'总结条目1',content:'蓝灯一',constant:true},
+  2:{uid:2,comment:'总结条目2',content:'蓝灯二',constant:true},
+  3:{uid:3,comment:'总结条目3',content:'未召回绿灯',constant:false,key:['AM0003']},
+  4:{uid:4,comment:'总结条目4',content:'关闭蓝灯',constant:true,disable:true},
+ };
+ const selection={compatibilityIds:['database'],databaseMode:'keywords',databaseLimit:1};
+ const before=structuredClone(snapshot),first=await build(snapshot,selection);
+ assert.deepEqual(first.sourceManifest.database,[['记忆',1],['记忆',2]]);
+ assert.equal(first.sourceManifest.databaseReason,'manual-worldbook');
+ assert.ok(!first.sourceManifest.plugins.includes('database_memory'));
+ assert.equal(first.messages.map(m=>m.content).join('\n').split('蓝灯一').length-1,1);
+ assert.deepEqual(snapshot,before);
+ snapshot.books.记忆.entries[1].constant=false;snapshot.books.记忆.entries[1].key=['AM0001'];
+ snapshot.books.记忆.entries[2].constant=false;snapshot.books.记忆.entries[2].key=['AM0002'];
+ snapshot.books.记忆.entries[3].constant=true;
+ const next=await build(snapshot,selection);assert.deepEqual(next.sourceManifest.database,[['记忆',3]]);
+ assert.deepEqual((await build(snapshot,{...selection,entryOverrides:{'["记忆",3]':false}})).sourceManifest.database,[]);
+ assert.equal((await build(snapshot,{compatibilityIds:['database']})).sourceManifest.databaseMode,'ranked','a blue light alone cannot prove recall completed');
+});
+
+test('auto mode validates every recall block and ignores codes from excluded books and entries',async()=>{
+ const snapshot=fixture();snapshot.databaseTarget='记忆';
+ snapshot.books.记忆.entries[3].disable=false;snapshot.books.记忆.entries[3].key=['AM0001'];
+ for(const input of ['<recall>AM0001</recall><recall>','<recall><recall>AM0001</recall>','</recall>','<recall>AM0001</recall><recall']){
+  snapshot.userInput=input;await assert.rejects(build(snapshot,{compatibilityIds:['database']}),/召回块/);
+ }
+ snapshot.userInput='AM0001';
+ assert.equal((await build(snapshot,{compatibilityIds:['database'],bookOverrides:{记忆:false}})).sourceManifest.databaseMode,'ranked');
+ assert.equal((await build(snapshot,{compatibilityIds:['database'],entryOverrides:{'["记忆",3]':false}})).sourceManifest.databaseMode,'ranked');
+ const found=await build(snapshot,{compatibilityIds:['database']});assert.equal(found.sourceManifest.databaseReason,'matched-codes');
+ snapshot.userInput='<recall></recall><recall>AM0001</recall>';
+ assert.equal((await build(snapshot,{compatibilityIds:['database']})).sourceManifest.databaseReason,'recall-block');
+});
+
+test('each planning source capture reloads database blue-light state after upstream selection',async()=>{
+ const initial=fixture();let selected=1,reads=0;
+ const context={chatId:'c',chat:[{is_user:true,mes:'继续'}],chatMetadata:{world_info:'记忆'}};
+ const host={context:()=>context,openai:{},powerUser:{},
+  manager:{getPresetList:()=>({presets:[initial.presets.P],preset_names:{P:0}}),getSelectedPresetName:()=>'P'},
+  world:{loadWorldInfo:async()=>{reads++;return {entries:Object.fromEntries([1,2].map(uid=>[uid,{uid,comment:`总结条目${uid}`,content:`纪要${uid}`,constant:uid===selected,key:[`AM000${uid}`],position:0}]))};}},
+ };
+ const first=await captureSources(host,{databaseBook:'记忆'});
+ const selection={compatibilityIds:['database'],databaseMode:'keywords'};
+ assert.deepEqual((await build(first,selection)).sourceManifest.database,[['记忆',1]]);
+ selected=2;
+ const second=await captureSources(host,{databaseBook:'记忆'});
+ assert.deepEqual((await build(second,selection)).sourceManifest.database,[['记忆',2]]);
+ assert.deepEqual((await build(first,selection)).sourceManifest.database,[['记忆',1]],'earlier snapshot stays frozen');
+ assert.equal(reads,2);
 });

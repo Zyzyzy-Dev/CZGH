@@ -1,9 +1,9 @@
 /* 独立规划消息组装：预设标记、私有宏、世界书扫描和指定插件的注入位置。 */
-import { resolvePreset } from './presets.js?v=0.5.2-dev.4';
-import { scanWorldInfo } from './world-info.js?v=0.5.2-dev.4';
-import { expandMacros } from './macros.js?v=0.5.2-dev.4';
-import { selectInjections } from './compatibility.js?v=0.5.2-dev.4';
-import { prepareDatabaseMemory } from './database-memory.js?v=0.5.2-dev.4';
+import { resolvePreset } from './presets.js?v=0.5.2-dev.5';
+import { scanWorldInfo } from './world-info.js?v=0.5.2-dev.5';
+import { expandMacros } from './macros.js?v=0.5.2-dev.5';
+import { selectInjections } from './compatibility.js?v=0.5.2-dev.5';
+import { prepareDatabaseMemory } from './database-memory.js?v=0.5.2-dev.5';
 const roles = ['system', 'user', 'assistant'];
 export async function buildPlanningContext({ snapshot, selection, worldState = {}, tokenize, random = Math.random, renderTemplate, serializeYaml }) {
     const database=prepareDatabaseMemory(snapshot,selection);snapshot=database.snapshot;
@@ -86,5 +86,5 @@ export async function buildPlanningContext({ snapshot, selection, worldState = {
     if (blocked.length) throw new Error(blocked.map(d => d.message).join('\n'));
     const total = await tokenize(messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n'));
     if (total > (snapshot.inputBudget ?? snapshot.maxContext)) throw new Error('独立规划上下文超过扣除输出后的预算，请减少选择的资料。');
-    return { messages, sourceManifest: { preset: preset.id, entries: preset.execution.map(e => e.identifier), world: scan.entries.map(e => [e.world, e.uid]), database: [...scan.database,...database.selected], databaseMode: database.mode, plugins: injected.items.map(i => i.key) }, diagnostics, nextWorldState: scan.nextState };
+    return { messages, sourceManifest: { preset: preset.id, entries: preset.execution.map(e => e.identifier), world: scan.entries.map(e => [e.world, e.uid]), database: [...scan.database,...database.selected], databaseMode: database.mode, databaseReason: database.reason, plugins: injected.items.map(i => i.key) }, diagnostics, nextWorldState: scan.nextState };
 }
