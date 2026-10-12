@@ -1,5 +1,6 @@
 /* 兼容资料注册表：仅选择明确属于插件的本轮注入槽，保留注入位置。 */
 export const adapters = Object.freeze([
+    { id: 'database', name: '数据库纪要', category: 'memory', slots: ['database_memory'] },
     { id: 'baibai', name: '柏宝书', category: 'memory', slots: ['baibai_book_memory', 'baibai_book_memory_history', 'baibai_book_memory_state', 'baibai_book_time_tag', 'baibai_book_vector_recall'] },
     { id: 'seven-days', name: '构画', category: 'plot', slots: ['sp_outline_step', 'sp_lines_latent', 'sp_ledger_remind'] },
 ]);

@@ -18,10 +18,10 @@ let plannerRequest, releaseStream;
 let streamGate;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{window.sourceReads=(window.sourceReads||0)+1;if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:'森林',content:window.worldContent||'森林里住着精灵。',disable:false},...Object.fromEntries(Array.from({length:window.worldEntryCount||0},(_,i)=>[i+2,{uid:i+2,constant:true,comment:'世界条目 '+i,content:'测试',disable:false}]))}};};");return;}
+    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{window.sourceReads=(window.sourceReads||0)+1;if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:window.worldComment||'森林',content:window.worldContent||'森林里住着精灵。',disable:false},...Object.fromEntries(Array.from({length:window.worldEntryCount||0},(_,i)=>[i+2,{uid:i+2,constant:true,comment:'世界条目 '+i,content:'测试',disable:false}]))}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
-    if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{window.stopCount=(window.stopCount||0)+1;};export const saveSettings=async()=>{window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
+    if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{window.stopCount=(window.stopCount||0)+1;};export const saveSettings=async()=>{if(window.toggleSaveGate)await window.toggleSaveGate;window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
     try{res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(target));}catch{res.writeHead(404).end();}
@@ -41,8 +41,25 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2-dev\.1$/);
  await checkUiRegressions(page,frame);
+ // Database memory uses the existing selected world book, with an explicit detection status.
+ await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
+ await frame.locator('#close').click();await page.locator('#czgh-planner-menu').click();
+ await frame.locator('#settings').click();
+ await frame.getByText('数据库记忆（世界书导出）',{exact:true}).waitFor();
+ await frame.getByText(/已读取 1 个数据库导出条目/).waitFor();
+ await frame.getByLabel('数据库纪要',{exact:true}).check();
+ await frame.getByLabel('数据库纪要世界书',{exact:true}).selectOption('设定集');
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseBook==='设定集');
+ await frame.getByText('来源：设定集',{exact:true}).waitFor();
+ await frame.getByLabel('最多读取纪要条数',{exact:true}).fill('12');
+ await frame.getByLabel('最多读取纪要条数',{exact:true}).press('Tab');
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseLimit===12);
+ await frame.getByLabel('数据库纪要',{exact:true}).uncheck();
+ await frame.getByLabel('数据库纪要世界书',{exact:true}).waitFor({state:'hidden'});
+ await page.reload();await page.locator('#czgh-planner-menu').click();
+ await frame.getByLabel('选择预设',{exact:true}).waitFor();
  // Resize preserves the frame and backdrop close never cancels generation.
  const panel=page.locator('#czgh-planner-container');
  const sizeBefore=await panel.boundingBox();

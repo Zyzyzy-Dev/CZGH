@@ -1,17 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.1';
-import { createApiSchemes } from './api-schemes.js?v=0.5.1';
-import { captureSources } from './sources.js?v=0.5.1';
-import { migrateSettings } from '../planning/core.js?v=0.5.1';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.1';
-import { resolvePreset } from '../planning/presets.js?v=0.5.1';
-import { adapters } from '../planning/compatibility.js?v=0.5.1';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.1';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.1';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.1';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.1';
-import { createCredentialStore } from './credential-store.js?v=0.5.1';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.1';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.1';
+import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.1';
+import { captureSources } from './sources.js?v=0.5.2-dev.1';
+import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.1';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.1';
+import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.1';
+import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.1';
+import { databaseMemoryEntries } from '../planning/database-memory.js?v=0.5.2-dev.1';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.1';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.1';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.1';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.1';
+import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.1';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.1';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -45,19 +46,19 @@ export function createWorkbench({ context, headers, saveSettings }) {
         if (!Array.isArray(data.data)) throw new Error('API 没有返回模型列表，可手动输入。');
         return data.data.map(x => x.id).filter(x => typeof x === 'string');
     } });
-    async function capture(signal, extraBooks, generationType) {
+    async function capture(signal, extraBooks, generationType, selection = {}) {
         const world = await import('/scripts/world-info.js');
         const c = context();
         const manager = c.getPresetManager?.('openai') || (await import('/scripts/preset-manager.js')).getPresetManager('openai');
-        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks, generationType });
+        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks, generationType, databaseBook: selection.compatibilityIds?.includes('database') ? selection.databaseBook || '' : undefined });
     }
     async function snapshot(refresh = false) {
         const settings = read();
-        if (!source || refresh) source = await capture(undefined, settings.selection.extraBooks);
+        if (!source || refresh) source = await capture(undefined, settings.selection.extraBooks, undefined, settings.selection);
         let preset = null, error = '';
         try { preset = resolvePreset(source, settings.selection); } catch (e) { error = e.message; }
-        return { settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error,
-            compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
+        return { settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error, databaseMemory: databaseMemoryEntries(source), databaseTarget: source.databaseTarget,
+            compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.id==='database' ? (source.databaseTarget ? '来源：'+source.databaseTarget : '未启用或未选择来源') : a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
     }
     return {
         snapshot,
@@ -72,15 +73,19 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 await write(state);
             } else if (method === 'selection.update') {
                 assertSafeData(payload);
+                const previousSettings=context().extensionSettings[ID];
                 for (const key of ['promptOverrides','groupOverrides','bookOverrides','entryOverrides']) if (payload[key] && typeof payload[key] === 'object' && !Array.isArray(payload[key])) {
                     if (Object.values(payload[key]).some(v => typeof v !== 'boolean')) throw new Error('开关值必须为布尔值。');
                     state.selection[key] = structuredClone(payload[key]);
                 }
+                if (typeof payload.databaseBook === 'string') state.selection.databaseBook = payload.databaseBook.trim();
+                if (Number.isInteger(payload.databaseLimit) && payload.databaseLimit >= 1 && payload.databaseLimit <= 200) state.selection.databaseLimit = payload.databaseLimit;
                 if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
                 for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];
-                await write(state);
+                try { await write(state); } catch(error) { context().extensionSettings[ID]=previousSettings;throw error; }
+                if (payload.compact === true && Object.keys(payload).every(key => ['compact','promptOverrides','groupOverrides'].includes(key))) return { selectionSaved: true };
                 // Entry/group switches only change selection, not captured source data.
-                if (['extraBooks','presetId','compatibilityIds'].some(key => key in payload)) source = null;
+                if (['extraBooks','presetId','compatibilityIds','databaseBook'].some(key => key in payload)) source = null;
             } else if (method === 'api.save') {
                 let base = {};
                 if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);
@@ -94,7 +99,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
             else if (method === 'api.models') return api.models(await api.resolve(state.apiSelection));
             else if (method === 'scheme.loadCurrent') {
                 if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
-                const fresh = await capture(undefined, []);
+                const fresh = await capture(undefined, [], undefined, state.selection);
                 if (payload.kind === 'preset') {
                     const native = resolvePreset(fresh, { presetId: fresh.currentPreset });
                     state.selection.presetId = fresh.currentPreset;
@@ -132,7 +137,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 if(!response.ok)throw Error('无法冻结当前连接的密钥引用。');
                 currentRequest=freezeCurrentRequest(data,await response.json(),text=>globalThis.SillyTavern.libs?.yaml?.parse?.(text)??JSON.parse(text));
             }
-            const frozen = await capture(signal, state.selection.extraBooks, data.type);
+            const frozen = await capture(signal, state.selection.extraBooks, data.type, state.selection);
             const snapshotData = await materializePluginMacros(frozen,state.selection,globalThis.STBaiBaiBook);
             await captureHelperVariables(snapshotData, context(), globalThis.TavernHelper, data.type);
             signal.throwIfAborted();

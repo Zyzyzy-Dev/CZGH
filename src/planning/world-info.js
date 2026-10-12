@@ -1,7 +1,8 @@
 /* 世界书私有扫描入口：合并挂载来源、本地开关、原生扫描器和独立计时状态。 */
-import { createNativeScanner } from './native-world-scan.js?v=0.5.1';
-import { expandMacros } from './macros.js?v=0.5.1';
-import { selectInjections } from './compatibility.js?v=0.5.1';
+import { createNativeScanner } from './native-world-scan.js?v=0.5.2-dev.1';
+import { expandMacros } from './macros.js?v=0.5.2-dev.1';
+import { selectInjections } from './compatibility.js?v=0.5.2-dev.1';
+import { validateDatabaseMemories } from './database-memory.js?v=0.5.2-dev.1';
 export const entryKey = (book, uid) => JSON.stringify([book, uid]);
 export async function scanWorldInfo({ snapshot, selection = {}, previousState = {}, tokenize, random = Math.random, serializeYaml }) {
     const diagnostics = [], nextState = structuredClone(previousState);
@@ -19,6 +20,7 @@ export async function scanWorldInfo({ snapshot, selection = {}, previousState = 
         seen.add(book);
         if (!snapshot.books[book]) throw new Error(`世界书「${book}」尚未读取或已删除。`);
         for (const [uid, raw] of Object.entries(snapshot.books[book].entries)) {
+            if(raw.databaseManaged)continue;
             const e = { order: 100, position: 0, key: [], keysecondary: [], probability: 100, ...structuredClone(raw), world: book, uid: raw.uid ?? uid };
             e.disable = !(selection.entryOverrides?.[entryKey(book, e.uid)] ?? !e.disable);
             if (e.disable) continue;
@@ -41,5 +43,7 @@ export async function scanWorldInfo({ snapshot, selection = {}, previousState = 
     });
     const c = snapshot.character || {}, env = snapshot.macroEnvironment || {};
     const result = await engine.scan(history, snapshot.maxContext, false, { trigger: snapshot.trigger || 'normal', personaDescription: env.persona || '', characterDescription: c.description || c.data?.description || '', characterPersonality: c.personality || c.data?.personality || '', characterDepthPrompt: c.data?.extensions?.depth_prompt?.prompt || '', scenario: c.scenario || c.data?.scenario || '', creatorNotes: c.data?.creator_notes || '' });
-    return { entries: [...result.allActivatedEntries], nextState, diagnostics, native: result, variables };
+    const activated=[...result.allActivatedEntries];
+    const database=validateDatabaseMemories(snapshot,activated);
+    return { entries: activated, database, nextState, diagnostics, native: result, variables };
 }

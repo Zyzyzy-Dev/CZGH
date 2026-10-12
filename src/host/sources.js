@@ -1,11 +1,11 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.5.1';
-import { captureAuthorNote } from '../planning/author-note.js?v=0.5.1';
+import { createId } from '../bridge/id.js?v=0.5.2-dev.1';
+import { captureAuthorNote } from '../planning/author-note.js?v=0.5.2-dev.1';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;
 }
-export async function captureSources(host, { signal, extraBooks = [], generationType } = {}) {
+export async function captureSources(host, { signal, extraBooks = [], generationType, databaseBook } = {}) {
     const context = host.context();
     const identity = () => JSON.stringify([host.context().chatId, host.context().characterId, host.context().groupId]);
     const chatId = identity();
@@ -22,6 +22,7 @@ export async function captureSources(host, { signal, extraBooks = [], generation
     const world = host.world;
     const file = character.avatar?.replace(/\.[^.]+$/, '');
     const primary = character.data?.extensions?.world;
+    const databaseTarget=databaseBook===undefined?'':String(databaseBook||primary||'');
     const persona = host.powerUser?.persona_description_lorebook;
     const bindings = {
         global: [...(world.selected_world_info || world.world_info?.globalSelect || [])],
@@ -30,7 +31,7 @@ export async function captureSources(host, { signal, extraBooks = [], generation
         persona: persona ? [persona] : [],
     };
     const books = {};
-    for (const name of new Set([...Object.values(bindings).flat(), ...extraBooks])) {
+    for (const name of new Set([...Object.values(bindings).flat(), ...extraBooks,...(databaseTarget?[databaseTarget]:[])])) {
         check(); const data = await world.loadWorldInfo(name); check();
         if (!data?.entries) throw new Error(`无法读取世界书「${name}」。`);
         Object.defineProperty(books, name, { value: structuredClone(data), enumerable: true });
@@ -39,7 +40,7 @@ export async function captureSources(host, { signal, extraBooks = [], generation
     // ST retains the replaced floor for swipe, but has already removed it for regenerate.
     if (generationType === 'swipe' && history.at(-1)?.role === 'assistant') history.pop();
     const injections = Object.fromEntries(Object.entries(context.extensionPrompts || {}).map(([key,p]) => [key,{value:String(p.value || ''),position:p.position,depth:p.depth,role:p.role,scan:!!p.scan,hasFilter:typeof p.filter==='function'}]));
-    const snapshot = { id: createId(), chatId, character, history, userInput: history.at(-1)?.role === 'user' ? history.at(-1).content : '', presets: presetMap, currentPreset, books, bookNames: [...(world.world_names || [])], bindings, injections,
+    const snapshot = { id: createId(), chatId, character, history, userInput: history.at(-1)?.role === 'user' ? history.at(-1).content : '', presets: presetMap, currentPreset, books, bookNames: [...(world.world_names || [])], bindings, injections, databaseTarget,
         macroEnvironment: { user: context.name1 || '', char: context.name2 || character.name || '', description: character.description || character.data?.description || '', personality: character.personality || character.data?.personality || '', scenario: character.scenario || character.data?.scenario || '', persona: host.powerUser?.persona_description || '', original: '', lastusermessage: history.findLast(m => m.role === 'user')?.content || '', lastcharmessage: history.findLast(m => m.role === 'assistant')?.content || '', lastmessage: history.at(-1)?.content || '', lastmessageid: history.length - 1 },
         authorNote: captureAuthorNote(context, character),
         variables: { local: structuredClone(context.chatMetadata?.variables || {}), global: structuredClone(context.extensionSettings?.variables?.global || {}) },

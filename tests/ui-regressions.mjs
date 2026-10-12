@@ -38,7 +38,7 @@ export async function checkUiRegressions(page, frame) {
     const previousPreset=await frame.locator('#app > :first-child').elementHandle();
     await frame.getByRole('switch',{name:'写作规则',exact:true}).click();
     await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===false);
-    await previousPreset.waitForElementState('hidden');
+    assert.equal(await previousPreset.evaluate(el=>el.isConnected),true,'preset toggle must retain the list DOM');
     try {assert.equal(await page.evaluate(()=>window.sourceReads||0),reads,'entry toggle must not reread world books');}
     catch(error){failures.push(error.message);}
     await frame.getByRole('switch',{name:'写作规则',exact:true}).click();
@@ -57,6 +57,28 @@ export async function checkUiRegressions(page, frame) {
     });
     await frame.locator('#close').click();await page.locator('#czgh-planner-menu').click();
     await frame.getByRole('switch',{name:'长列表 79',exact:true}).waitFor();
+    // Slow mobile CPU + blocked persistence: feedback must precede the save response.
+    await page.setViewportSize({width:390,height:844});
+    const cdp=await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+    await page.evaluate(()=>{
+        window.toggleSaveGate=new Promise(resolve=>window.releaseToggleSave=resolve);
+        window.compactReplies=[];
+        window.addEventListener('message',event=>{
+            if(event.data?.type==='request'&&event.data.payload?.compact)window.compactReplies.push(event.data.requestId);
+        });
+    });
+    const rapid=frame.getByRole('switch',{name:'长列表 79',exact:true});
+    const retained=await rapid.elementHandle();
+    await rapid.evaluate(node=>{node.click();node.click();node.click();});
+    assert.equal(await rapid.getAttribute('aria-checked'),'false','switch must update before persistence completes');
+    assert.equal(await retained.evaluate(node=>node.isConnected),true);
+    await page.evaluate(()=>{window.releaseToggleSave();window.toggleSaveGate=null;});
+    await page.waitForFunction(()=>window.compactReplies.length===3&&context.extensionSettings.czgh_external_planner.selection.promptOverrides.long79===false);
+    await rapid.click();
+    await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.long79===true);
+    await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});await cdp.detach();
+    await page.setViewportSize({width:1100,height:900});
     for(const [tab,label] of [['预设','长列表 79'],['世界书','世界条目 79']]){
         await frame.getByRole('tab',{name:tab,exact:true}).click();
         if(tab==='世界书')await frame.locator('.book-heading').first().click();
@@ -65,7 +87,12 @@ export async function checkUiRegressions(page, frame) {
         const scroll=await frame.locator('#app').evaluate(el=>el.scrollTop);
         const sourceReads=await page.evaluate(()=>window.sourceReads);
         const old=await frame.locator('#app > :first-child').elementHandle();
-        await item.click();await old.waitForElementState('hidden');
+        await item.click();
+        if(tab==='世界书')await old.waitForElementState('hidden');
+        else {
+            await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.long79===false);
+            assert.equal(await old.evaluate(el=>el.isConnected),true,'long preset toggle must not rebuild list');
+        }
         assert.equal(await item.getAttribute('aria-checked'),'false');
         assert.ok(scroll>500);
         assert.ok(Math.abs(await frame.locator('#app').evaluate(el=>el.scrollTop)-scroll)<3,`${tab} scroll must stay at edited entry`);

@@ -1,5 +1,5 @@
 /* 界面基础控件：安全文本节点、图标按钮、字段、分组和本地对话框。 */
-import { setIcon } from './icons.js?v=0.5.1';
+import { setIcon } from './icons.js?v=0.5.2-dev.1';
 export function el(tag, className = '', text = '') { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 export function button(label, action, icon) {
     const node = el('button', icon ? 'icon' : '', icon || label); node.type = 'button'; node.title = label; node.setAttribute('aria-label', label); node.addEventListener('click', action); if(icon==='↥')setIcon(node,'edit');if(icon==='⌫'){setIcon(node,'trash');node.classList.add('danger-icon');}return node;
@@ -29,7 +29,7 @@ export function toggleSwitch(label, checked, change, partial = false) {
     node.title = partial ? `${label}（部分开启）` : label;
     node.append(el('span', 'switch-track'));
     node.addEventListener('click', event => {
-        event.preventDefault(); event.stopPropagation(); change(!checked);
+        event.preventDefault(); event.stopPropagation(); checked=!checked;node.setAttribute('aria-checked',String(checked));change(checked);
     });
     return node;
 }
