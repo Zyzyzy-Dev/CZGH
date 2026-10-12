@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.2';
-import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.2';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.2';
-import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.2';
-import { editAdditional } from './additional-editor.js?v=0.5.2-dev.2';
-import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.2';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.2';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.3';
+import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.3';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.3';
+import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.3';
+import { editAdditional } from './additional-editor.js?v=0.5.2-dev.3';
+import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.3';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.3';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -84,9 +84,9 @@ function buildView(root, state, ui, act, liveRoot) {
             const selected=selection.databaseBook||'';
             const options=[{id:'',name:'跟随角色主世界书'},...state.bookNames.map(name=>({id:name,name}))];
             if(selected&&!state.bookNames.includes(selected))options.push({id:selected,name:selected+'（当前不可用）'});
-            compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})),field('最多读取纪要条数',selection.databaseLimit??20,value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(200,Math.trunc(value)||20))}),'number'));
+            compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})),field('最多读取纪要条数',Math.min(50,selection.databaseLimit??20),value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(50,Math.trunc(value)||20))}),'number'));
         }
-        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。普通世界书仍按扫描规则使用；开启数据库纪要后，从所选书直接读取最近编号的非空纪要。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','当前是最近纪要读取，不复用数据库本轮召回结果，不能保证与正文使用同一批记忆。纪要默认最多 20 条，按编号取最近记录，不进行语义召回。直接读取不依赖原生蓝绿灯，但遵守规划世界书页的手动关闭；不支持查询模板、交火召回及零层模式。'));
+        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。普通世界书仍按扫描规则使用；开启数据库纪要后，按构画规则从所选书筛选与当前输入及最近 6 条可见 AI 回复相关的纪要。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','采用构画的词项重合评分，默认 20 条、最多 50 条；同分优先靠后的条目，选中后按原顺序注入，不额外调用 API。这不是数据库交火召回，不保证与正文使用同一批记忆。直接读取不依赖原生蓝绿灯，但遵守规划世界书页的手动关闭；不支持查询模板、交火召回及零层模式。'));
         root.append(section('插件兼容',compatibility));
         const syntax=el('div','section-body');
         syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));

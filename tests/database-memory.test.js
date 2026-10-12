@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { databaseRecallQuery, recallProse } from '../src/planning/database-recall.js';
 import { buildPlanningContext } from '../src/planning/context.js';
 
 function fixture(){
@@ -29,7 +30,7 @@ test('explicit database source reads inactive memos once, respects private overr
     assert.ok(!off.messages.some(m=>m.content.includes('昨晚约定会面')));
 });
 
-test('database source keeps newest numbered memos within limit and refuses a missing explicit target',async()=>{
+test('database source keeps recent book entries within limit and refuses a missing explicit target',async()=>{
     const snapshot=fixture();snapshot.databaseTarget='记忆';
     snapshot.books.记忆.entries[7]={uid:7,comment:'总结条目7',content:'较新纪要',constant:true,position:0};
     const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1});
@@ -88,4 +89,27 @@ test('database identification does not claim unrelated similarly named rows or d
     const result=await build(snapshot);
     assert.deepEqual(result.sourceManifest.database,[['记忆',1],['记忆',2]]);
     assert.ok(!result.messages.some(m=>m.content.includes('not for prompt')));
+});
+
+test('database recall selects relevant old memos using names and keyword tags, then restores book order',async()=>{
+    const snapshot=fixture();snapshot.databaseTarget='记忆';
+    snapshot.books.记忆.entries={
+        1:{uid:1,comment:'总结条目99',content:'旧约定的具体内容',key:['灯塔钥匙'],disable:true},
+        2:{uid:2,comment:'总结条目2',content:'刚刚吃了午饭',disable:true},
+        3:{uid:3,comment:'总结条目1',content:'灯塔钥匙放在抽屉里',disable:true},
+    };
+    snapshot.userInput='寻找灯塔钥匙';
+    const result=await build(snapshot,{compatibilityIds:['database'],databaseLimit:2});
+    assert.deepEqual(result.sourceManifest.database,[['记忆',1],['记忆',3]]);
+    snapshot.userInput='zzzz';snapshot.history=[];
+    const fallback=await build(snapshot,{compatibilityIds:['database'],databaseLimit:1});
+    assert.deepEqual(fallback.sourceManifest.database,[['记忆',3]],'ties prefer later book position, not numeric suffix');
+});
+
+test('database recall query uses six AI replies, strips non-content blocks and caps each tail',()=>{
+    assert.equal(recallProse('<think>噪音</think><content>正文</content>'),'正文');
+    assert.equal(recallProse('<outer>噪音<content>保留</content></outer>'),'保留');
+    const query=databaseRecallQuery({userInput:'当前问题',databaseRecent:['不要这个',...Array.from({length:6},(_,i)=>'<think>秘密</think><content>'+String(i).repeat(800)+'</content>')]});
+    assert.ok(query.startsWith('当前问题'));assert.ok(!query.includes('秘密'));assert.ok(!query.includes('不要这个'));
+    assert.equal(query.split('\n').at(-1).length,700);
 });
