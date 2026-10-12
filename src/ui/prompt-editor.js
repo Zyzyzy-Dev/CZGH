@@ -1,5 +1,5 @@
 /* 提示词草稿编辑：取消不写入，恢复默认需完成后保存，失败保留草稿。 */
-import { el, button } from './components.js?v=0.5.2';
+import { el, button } from './components.js?v=0.5.3-dev.1';
 export function editPrompt({title,value,defaultValue,description,save}) {
     const dialog=el('dialog','detail-dialog prompt-editor');
     dialog.setAttribute('aria-label',`编辑${title}`);

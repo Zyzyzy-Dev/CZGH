@@ -15,12 +15,12 @@ input,textarea,button{font-size:55px!important;color:rgb(255,0,0)!important;back
 <script>const listeners={};window.saved=0;window.context={extensionSettings:{preset_compare_api_manager:{version:1,profiles:[{id:'p1',name:'测试方案',source:'custom',model:'model',secretId:'s1',connection:{custom_url:'https://example.org/v1'}}]}},eventTypes:{APP_READY:'ready',CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat',GENERATION_ENDED:'ended',MESSAGE_RECEIVED:'received',CHARACTER_MESSAGE_RENDERED:'render',GENERATION_STARTED:'started',USER_MESSAGE_RENDERED:'user-render'},eventSource:{on:(n,f)=>(listeners[n]??=[]).push(f)},saveSettingsDebounced:()=>window.saved++};const preset={prompts:[{identifier:'main',name:'写作规则',role:'system',content:'规划使用 <Think> 标签'},{identifier:'chatHistory',name:'聊天历史',marker:true}],prompt_order:[{character_id:100001,order:[{identifier:'main',enabled:true},{identifier:'chatHistory',enabled:true}]}],extensions:{baibaiToolkit:{presetPromptGroups:{groups:[{id:'g',name:'写作要求',order:0}],prompts:{main:{groupId:'g'}}}}}};Object.assign(context,{chatId:'test',chat:[],chatMetadata:{},characters:[],name1:'玩家',name2:'角色',getPresetManager:()=>({getPresetList:()=>({presets:[preset],preset_names:{'测试预设':0}}),getSelectedPresetName:()=> '测试预设'}),chatCompletionSettings:{},powerUserSettings:{},saveChat:async()=>{window.chatSaved=(window.chatSaved||0)+1},saveMetadataDebounced:()=>{},getTokenCountAsync:async t=>t.length});const persisted=localStorage.getItem("test-settings");if(persisted)context.extensionSettings=JSON.parse(persisted);window.SillyTavern={getContext:()=>context};</script>
 <script type="module" src="/index.js"></script></body></html>`;
 let plannerRequest, releaseStream;
-let streamGate;
+let streamGate, keepStreamOpen=false;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{window.sourceReads=(window.sourceReads||0)+1;if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:window.worldComment||'森林',content:window.worldContent||'森林里住着精灵。',disable:false},...Object.fromEntries(Array.from({length:window.worldEntryCount||0},(_,i)=>[i+2,{uid:i+2,constant:true,comment:'世界条目 '+i,content:'测试',disable:false}]))}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
-    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
+    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.write('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\n');if(keepStreamOpen){await new Promise(resolve=>res.once('close',resolve));return;}res.end('data: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{window.stopCount=(window.stopCount||0)+1;};export const saveSettings=async()=>{if(window.toggleSaveGate)await window.toggleSaveGate;window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
@@ -41,7 +41,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.3-dev\.1$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -97,7 +97,7 @@ try{
  const originalPrompt=await editor.getByLabel('提示词内容',{exact:true}).inputValue();
  assert.match(originalPrompt,/6\. 交接内容/);
  assert.match(originalPrompt,/本轮由你按照本次输入中的写作与规划指令/);
- assert.match(originalPrompt,/这一步很重要，因为你的另一位写作同事/);
+ assert.match(originalPrompt,/不重复题干、提问列表、填写说明或操作口令/);
  await editor.getByLabel('提示词内容',{exact:true}).fill('测试规划自定义');
  await editor.getByRole('button',{name:'完成',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.plannerPrompt==='测试规划自定义');
@@ -251,6 +251,7 @@ try{
  }
 
  await floor.locator('summary').click();
+ keepStreamOpen=true;
  streamGate=new Promise(resolve=>releaseStream=resolve);
  await page.evaluate(()=>{window.testGeneration=(async()=>{
  for(const fn of listeners.started||[])await fn('normal');
@@ -270,6 +271,8 @@ try{
  assert.equal(await page.evaluate(()=>context.chat.length),1);
  releaseStream();streamGate=null;
  await floor.getByText('· 等待生成正文',{exact:true}).waitFor();
+ keepStreamOpen=false;
+ assert.equal(await frame.locator('#cancel').getAttribute('data-icon'),'stop');
  assert.equal(await page.evaluate(()=>context.chat.length),1);
  assert.equal(await frame.locator('#resume').isEnabled(),true);
  await page.evaluate(()=>{context.chat[0].extra={otherPlugin:{displayUpdated:true}};});

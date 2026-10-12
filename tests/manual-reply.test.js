@@ -1,6 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createPlanner} from '../src/host/planner.js';
+import {setImmediate as nextTurn} from 'node:timers/promises';
+
+test('manual mode releases completed SSE and clears planning timeout while awaiting the user',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const listeners={};let stops=0,cancelled=0,finishCleanup,calls=0;const oldFetch=globalThis.fetch;
+ const context={chatId:'manual',chat:[{is_user:true,mes:'继续'}],extensionSettings:{czgh_external_planner:{enabled:true,autoReply:false,timeoutSeconds:10,maxTokens:6000}},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(e,f)=>listeners[e]=f}};
+ globalThis.fetch=async()=>{calls++;return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"<Think>交接完成</Think>"},"finish_reason":"stop"}]}\n\n'));},cancel(){cancelled++;return new Promise(r=>finishCleanup=r);}}));};
+ const records=[],progress=[];
+ const planner=createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){stops++;listeners.stop();},prepare:async()=>({messages:[{role:'system',content:'规划使用 <Think> 标签'}],request:{model:'test'}}),onProgress:r=>progress.push({...r}),onPlanReady:r=>records.push(r)});
+ const data={type:'normal',messages:[{role:'user',content:'继续'}]},before=structuredClone(data);let task;
+ try{
+  task=listeners.request(data);await nextTurn();
+  assert.equal(planner.getState().awaitingReply,true);assert.equal(planner.isPlanning(),false);assert.equal(cancelled,1);
+  assert.equal(progress.at(-1).phase,'awaiting');assert.deepEqual(data,before);
+  t.mock.timers.tick(60000);await nextTurn();
+  assert.equal(stops,0);assert.equal(planner.getState().awaitingReply,true);
+  assert.equal(planner.resume(),true);await task;
+  assert.equal(calls,1);assert.equal(records.length,1);assert.match(data.messages.at(-1).content,/交接完成/);
+ }finally{planner.stop();finishCleanup?.();await task;globalThis.fetch=oldFetch;t.mock.timers.reset();}
+});
 for(const action of ['resume','cancel','chat','edited','metadata','body','swipe','deleted','reordered','role','name','content','selected-swipe'])test(`manual planning waits, then ${action} is isolated`,async()=>{
  const listeners={},records=[];let stops=0,fetches=0;const originalFetch=globalThis.fetch;
  const context={chatId:'a',chat:[{is_user:true,mes:'hello',name:'User'},{is_user:false,mes:'previous',swipe_id:0,swipes:['previous','alternative']}],extensionSettings:{czgh_external_planner:{enabled:true,autoReply:false,timeoutSeconds:60,maxTokens:6000}},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(e,f)=>listeners[e]=f}};

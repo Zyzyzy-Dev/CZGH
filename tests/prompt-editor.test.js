@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import { migrateSettings, planningMessages, writingMessages } from '../src/planning/core.js';
 import { cleanSettings } from '../src/bridge/protocol.js';
 
+test('0.5.2 planning default upgrades without overwriting a modified handoff or writer prompt',async()=>{
+    const {readFile}=await import('node:fs/promises');
+    const old=JSON.parse(await readFile(new URL('../docs/prompt-backups/0.5.2.json',import.meta.url),'utf8'));
+    const migrated=migrateSettings(old);
+    assert.notEqual(migrated.plannerPrompt,old.plannerPrompt);
+    assert.equal(migrated.writerPrompt,old.writerPrompt);
+    assert.deepEqual(migrateSettings(migrated),migrated);
+    const edited={plannerPrompt:old.plannerPrompt+'\n自定义保留',writerPrompt:'自定义正文'};
+    assert.equal(migrateSettings(edited).plannerPrompt,edited.plannerPrompt);
+    assert.equal(migrateSettings(edited).writerPrompt,edited.writerPrompt);
+});
+
 test('dev7 full defaults and legacy openings upgrade together while edited and empty prompts survive',async()=>{
     const {readFile}=await import('node:fs/promises');
     const {promptDefaults,defaults}=await import('../src/planning/core.js');

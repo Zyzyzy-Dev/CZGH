@@ -98,8 +98,8 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.match(message,/不增加未要求/);
     assert.match(message,/每个召回、读取、检查和核算任务/);
     assert.doesNotMatch(message,/不输出规划区块之外的正文、顶栏、状态栏/);
-    assert.match(message,/写出具体结果或本轮处理安排/);
-    assert.match(message,/各个规划步骤与输出中的步骤须逐一对应/);
+    assert.match(message,/在所属步骤下给出具体结果/);
+    assert.match(message,/需要执行的规划步骤与输出步骤逐一对应/);
     assert.match(message,/<Abstract>/);
 });
 
@@ -110,19 +110,14 @@ test('declarative planning requirements migrate and remain binding on the writer
     const source=[{role:'system',content:'## 写作指导\n保持有限视角\n## 推进速度\n1. 缓慢推进\n2. 短段落\n3. 对话占三成\n4. 避免哪些重复？'}];
     const original=structuredClone(source);
     const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
-    assert.match(plan,/提问式引导规划步骤需逐项回答/);
     assert.match(plan,/原有标题、层级及编号/);
-    assert.match(plan,/一字不差的写出该陈述性指导的原文/);
-    assert.match(plan,/1\. 提问式引导规划步骤需逐项回答；\n2\. 非提问式的陈述性指导/);
+
     assert.doesNotMatch(plan,/变量宏|宏占位符|是否使用宏|展开后的/);
     assert.doesNotMatch(plan,/不输出状态栏/);
-    assert.match(plan,/再另起一行回答提问式引导/);
-    assert.match(plan,/不概括、不改写、不替换为执行说明/);
+
     assert.match(plan,/本轮安排：/);
-    assert.match(plan,/陈述性指导原文与安排必须分开，安排不能替代陈述性指导原文/);
-    assert.match(plan,/作用对象、单位、范围、强度、条件及否定关系/);
+    assert.match(plan,/作用对象、单位、范围、强度、条件、否定关系/);
     assert.doesNotMatch(plan,/不自行补充实施方案/);
-    assert.match(plan,/安排不能替代陈述性指导原文/);
     const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
     assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
     assert.match(writer.at(-1).content,/自定义正文要求/);

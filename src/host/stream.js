@@ -34,8 +34,10 @@ export async function readPlanResponse(response, onText = () => {}, signal) {
             if (mode !== 'sse') { if (done) break; else continue; }
             buffer = buffer.replace(/\r\n/g, '\n');
             let end;
-            while ((end = buffer.indexOf('\n\n')) >= 0) { consume(buffer.slice(0,end)); buffer = buffer.slice(end+2); }
-            if (done || complete) break;
+            while (!finish && !complete && (end = buffer.indexOf('\n\n')) >= 0) { consume(buffer.slice(0,end)); buffer = buffer.slice(end+2); }
+            // A terminal choice is sufficient: some proxies keep the transport
+            // open after finish_reason instead of sending [DONE] or EOF.
+            if (done || complete || finish) break;
         }
         if (mode === 'json') {
             signal?.throwIfAborted();
@@ -43,9 +45,13 @@ export async function readPlanResponse(response, onText = () => {}, signal) {
             try { result = JSON.parse(buffer); } catch { throw new Error('规划 API 返回了不完整或无效的 JSON。'); }
             return jsonChoice(result);
         }
-        if (buffer.trim()) consume(buffer);
+        if (!finish && !complete && buffer.trim()) consume(buffer);
         signal?.throwIfAborted();
         if (!finish) throw new Error('规划流式响应意外中断，未注入正文。');
         return { message: { content: text }, finish_reason: finish };
-    } finally { await reader.cancel().catch(()=>{}); reader.releaseLock(); }
+    } finally {
+        // Network cleanup must not delay validated completion or error delivery.
+        void reader.cancel().catch(()=>{});
+        reader.releaseLock();
+    }
 }
