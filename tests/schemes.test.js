@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { migrateSchemes, applySchemeOperation, schemeSelectionState, rememberScheme } from '../src/planning/schemes.js';
 
+test('obsolete database modes migrate to automatic routing without losing source or limits',()=>{
+    for(const databaseMode of ['keywords','ranked','auto']){
+        const saved=migrateSchemes({});Object.assign(saved.selection,{databaseMode,databaseBook:'记忆',databaseLimit:12});
+        const migrated=migrateSchemes(saved);
+        assert.equal(migrated.selection.databaseMode,undefined);
+        assert.equal(migrated.selection.databaseBook,'记忆');assert.equal(migrated.selection.databaseLimit,12);
+        assert.equal(saved.selection.databaseMode,databaseMode);
+    }
+});
+
 test('local schemes preserve external settings and reject missing overwrite targets', () => {
     const original = { apiUrl: 'https://example.com/v1', model: 'm', profileId: '', other: { value: 1 } };
     const before = structuredClone(original);

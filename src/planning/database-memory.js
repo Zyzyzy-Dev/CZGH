@@ -1,5 +1,5 @@
 /* 数据库 1.2.9 世界书导出识别：沿用独立扫描，不读取原始全表或触发数据库更新。 */
-import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.2-dev.5';
+import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.2-dev.6';
 const generatedName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?TavernDB-ACU-(?:ReadableDataTable|OutlineTable|ImportantPersonsIndex|PersonsHeader|CustomExport(?:-.+)?|WrapperStart|WrapperEnd|MemoryStart|MemoryEnd)$/;
 const rowName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?(?:重要人物条目|小总结条目|总结条目)\d+$/;
 const unresolvedTemplate=/\{\[\s*(?:db\.|sql\b)|<if\s+(?:seed|cell|cond|db|sql)\s*=|<(?:calc|max|min|random)(?:\s|>)|\$v:/i;
@@ -8,8 +8,7 @@ const memoName=/^(?:ACU-\[[^\r\n]*?\]-)?(?:外部导入-)?(?:TavernDB-ACU-Custom
 export const isDatabaseMemoEntry=entry=>memoName.test(String(entry.name||entry.comment||'').trim());
 
 export function databaseMemoryDecision(snapshot,selection){
-    if(selection.databaseMode==='keywords')return {mode:'keywords',reason:'manual-worldbook'};
-    if(selection.databaseMode==='ranked')return {mode:'ranked',reason:'manual-ranked'};
+    // One automatic policy. Ignore obsolete manual modes even in unmigrated snapshots.
     const input=String(snapshot.userInput??snapshot.history?.findLast(m=>m.role==='user')?.content??'');
     // Validate all blocks before accepting any result: a completed block can be
     // followed by a second block that is still streaming. Nested blocks are invalid.

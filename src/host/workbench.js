@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.5';
-import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.5';
-import { captureSources } from './sources.js?v=0.5.2-dev.5';
-import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.5';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.5';
-import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.5';
-import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.5';
-import { databaseMemoryEntries, databaseMemoryMode } from '../planning/database-memory.js?v=0.5.2-dev.5';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.5';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.5';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.5';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.5';
-import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.5';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.5';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.2-dev.6';
+import { createApiSchemes } from './api-schemes.js?v=0.5.2-dev.6';
+import { captureSources } from './sources.js?v=0.5.2-dev.6';
+import { migrateSettings } from '../planning/core.js?v=0.5.2-dev.6';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.2-dev.6';
+import { resolvePreset } from '../planning/presets.js?v=0.5.2-dev.6';
+import { adapters } from '../planning/compatibility.js?v=0.5.2-dev.6';
+import { databaseMemoryEntries, databaseMemoryMode } from '../planning/database-memory.js?v=0.5.2-dev.6';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.2-dev.6';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.2-dev.6';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.2-dev.6';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.2-dev.6';
+import { createCredentialStore } from './credential-store.js?v=0.5.2-dev.6';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.2-dev.6';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -80,7 +80,6 @@ export function createWorkbench({ context, headers, saveSettings }) {
                     state.selection[key] = structuredClone(payload[key]);
                 }
                 if (typeof payload.databaseBook === 'string') state.selection.databaseBook = payload.databaseBook.trim();
-                if (['auto','keywords','ranked'].includes(payload.databaseMode)) state.selection.databaseMode = payload.databaseMode;
                 if (Number.isInteger(payload.databaseLimit) && payload.databaseLimit >= 1 && payload.databaseLimit <= 50) state.selection.databaseLimit = payload.databaseLimit;
                 if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
                 for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];
@@ -139,6 +138,9 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 if(!response.ok)throw Error('无法冻结当前连接的密钥引用。');
                 currentRequest=freezeCurrentRequest(data,await response.json(),text=>globalThis.SillyTavern.libs?.yaml?.parse?.(text)??JSON.parse(text));
             }
+            // Invoked at SETTINGS_READY, after ST has awaited the database's
+            // AFTER_COMMANDS / USER_MESSAGE_RENDERED / WORLDINFO_ENTRIES_LOADED gates.
+            // Capture fresh here: the panel snapshot may predate recall/writeback.
             const frozen = await capture(signal, state.selection.extraBooks, data.type, state.selection);
             const snapshotData = await materializePluginMacros(frozen,state.selection,globalThis.STBaiBaiBook);
             await captureHelperVariables(snapshotData, context(), globalThis.TavernHelper, data.type);

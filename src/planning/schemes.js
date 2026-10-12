@@ -1,5 +1,5 @@
 /* 独立方案存储：迁移旧设置、校验可持久化数据，以副本执行增删改。 */
-import { createId } from '../bridge/id.js?v=0.5.2-dev.5';
+import { createId } from '../bridge/id.js?v=0.5.2-dev.6';
 const KINDS = ['api', 'preset', 'world'];
 export function assertSafeData(value) {
     if (!value || typeof value !== 'object') return;
@@ -17,6 +17,7 @@ export function migrateSchemes(settings = {}) {
     }
     for (const kind of KINDS) if (!Array.isArray(result.schemes[kind])) throw new Error('方案数据损坏，请保留原数据。');
     result.selection ??= { presetId: '', promptOverrides: {}, groupOverrides: {}, bookOverrides: {}, entryOverrides: {}, extraBooks: [], compatibilityIds: ['baibai', 'seven-days'] };
+    delete result.selection.databaseMode; // Database routing is automatic since dev.6.
     result.schemeSelection ??= { preset: '', world: '' };
     result.schemeBaseline ??= {};
     for (const kind of ['preset','world']) {

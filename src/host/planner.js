@@ -1,8 +1,8 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.2-dev.5';
-import { createId } from '../bridge/id.js?v=0.5.2-dev.5';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.2-dev.5';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.2-dev.5';
+import { readPlanResponse } from './stream.js?v=0.5.2-dev.6';
+import { createId } from '../bridge/id.js?v=0.5.2-dev.6';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.2-dev.6';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.2-dev.6';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -161,6 +161,9 @@ async function onRequest(data) {
 const c = ctx();
 c.extensionSettings[ID] = migrateSettings(c.extensionSettings[ID]);
 const event = c.eventTypes.CHAT_COMPLETION_SETTINGS_READY;
+// Keep planning downstream of ST's awaited send/worldbook events. Database
+// naiv1.2.9 completes recall and user-input writeback in those earlier stages.
+// Starting from USER_MESSAGE_RENDERED itself would race its post-emit wait gate.
 if (event) c.eventSource.on(event, onRequest);
 else { settings().enabled = false; status('当前酒馆缺少请求事件，插件未启用。'); }
 c.eventSource.on(c.eventTypes.GENERATION_STOPPED, abortPending);
