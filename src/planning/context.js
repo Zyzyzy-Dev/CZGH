@@ -1,9 +1,9 @@
 /* 独立规划消息组装：预设标记、私有宏、世界书扫描和指定插件的注入位置。 */
-import { resolvePreset } from './presets.js?v=0.5.2-dev.1';
-import { scanWorldInfo } from './world-info.js?v=0.5.2-dev.1';
-import { expandMacros } from './macros.js?v=0.5.2-dev.1';
-import { selectInjections } from './compatibility.js?v=0.5.2-dev.1';
-import { prepareDatabaseMemory } from './database-memory.js?v=0.5.2-dev.1';
+import { resolvePreset } from './presets.js?v=0.5.2-dev.2';
+import { scanWorldInfo } from './world-info.js?v=0.5.2-dev.2';
+import { expandMacros } from './macros.js?v=0.5.2-dev.2';
+import { selectInjections } from './compatibility.js?v=0.5.2-dev.2';
+import { prepareDatabaseMemory } from './database-memory.js?v=0.5.2-dev.2';
 const roles = ['system', 'user', 'assistant'];
 export async function buildPlanningContext({ snapshot, selection, worldState = {}, tokenize, random = Math.random, renderTemplate, serializeYaml }) {
     const database=prepareDatabaseMemory(snapshot,selection);snapshot=database.snapshot;

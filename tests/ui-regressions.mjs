@@ -20,6 +20,9 @@ export async function checkUiRegressions(page, frame) {
     await frame.locator('summary').filter({hasText:/^高级设置$/}).click();
     const control=frame.getByLabel('规划完成后自动生成正文',{exact:true});
     await control.scrollIntoViewIfNeeded();
+    const checkboxBox=await control.locator('..').boundingBox();
+    const tagsBox=await frame.getByLabel('规划标签',{exact:true}).boundingBox();
+    assert.ok(tagsBox.y-(checkboxBox.y+checkboxBox.height)>=10,'advanced select must leave room for focus outline above');
     const before=await frame.locator('#app').evaluate(el=>el.scrollTop);
     assert.ok(before>0,'fixture must be scrolled');
     const previousSettings=await frame.locator('#app > :first-child').elementHandle();

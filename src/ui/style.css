@@ -92,3 +92,7 @@ button svg{display:block;margin:auto;pointer-events:none}.danger-icon{color:#b85
 .api-limits{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px}.api-limits .field{min-width:0}.api-limits input{min-width:0;width:100%}.api-limits button{padding:6px}.additional-field{display:flex;flex-direction:column;gap:5px;min-height:0;flex:1}.additional-field textarea{width:100%;min-height:60px;flex:1;resize:vertical}.preview-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}.preview-heading h2{margin:0;font-size:13px}.preview-tabs{margin:0;display:flex}.preview-tabs button{padding:6px;font-size:12px}.preview-compress{display:flex;justify-content:flex-end;gap:5px;font-size:12px;margin:8px 0}.preview-compress[hidden]{display:none}
 
 .api-limits{align-items:center}.api-limits button{height:36px}.api-limits .field{margin:0}
+
+/* Keep the focused select outline clear of the preceding auto-reply checkbox. */
+.advanced-settings > .check{margin-bottom:12px;min-height:24px}
+.advanced-settings > select{display:block}

@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.1';
-import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.1';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.1';
-import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.1';
-import { editAdditional } from './additional-editor.js?v=0.5.2-dev.1';
-import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.1';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.1';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.2-dev.2';
+import { entryKey } from '../planning/world-info.js?v=0.5.2-dev.2';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.2-dev.2';
+import { promptDefaults } from '../planning/core.js?v=0.5.2-dev.2';
+import { editAdditional } from './additional-editor.js?v=0.5.2-dev.2';
+import { editPrompt } from './prompt-editor.js?v=0.5.2-dev.2';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.2-dev.2';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -86,13 +86,13 @@ function buildView(root, state, ui, act, liveRoot) {
             if(selected&&!state.bookNames.includes(selected))options.push({id:selected,name:selected+'（当前不可用）'});
             compatibility.append(select('数据库纪要世界书',options,selected,value=>act('selection.update',{databaseBook:value})),field('最多读取纪要条数',selection.databaseLimit??20,value=>act('selection.update',{databaseLimit:Math.max(1,Math.min(200,Math.trunc(value)||20))}),'number'));
         }
-        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。普通世界书仍按扫描规则使用；开启数据库纪要后，从所选书直接读取最近编号的非空纪要。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','纪要默认最多 20 条，按编号取最近记录，不进行语义召回。直接读取不依赖原生蓝绿灯，但遵守规划世界书页的手动关闭；不支持查询模板、交火召回及零层模式。'));
+        compatibility.append(el('p','hint',databaseCount?`已读取 ${databaseCount} 个数据库导出条目。普通世界书仍按扫描规则使用；开启数据库纪要后，从所选书直接读取最近编号的非空纪要。`:'当前资料中未识别到数据库导出条目。请先由数据库导出记忆，再选择目标世界书。'),el('p','hint','当前是最近纪要读取，不复用数据库本轮召回结果，不能保证与正文使用同一批记忆。纪要默认最多 20 条，按编号取最近记录，不进行语义召回。直接读取不依赖原生蓝绿灯，但遵守规划世界书页的手动关闭；不支持查询模板、交火召回及零层模式。'));
         root.append(section('插件兼容',compatibility));
         const syntax=el('div','section-body');
         syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
         root.append(section('提示词语法',syntax,true));
         const display=el('div','section-body');display.append(check('在用户消息下显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
-        const advanced=el('div','section-body');advanced.append(check('规划完成后自动生成正文',s.autoReply,v=>act('settings.update',{autoReply:v})));advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
+        const advanced=el('div','section-body advanced-settings');advanced.append(check('规划完成后自动生成正文',s.autoReply,v=>act('settings.update',{autoReply:v})));advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
         if(s.tagMode==='manual')advanced.append(field('开始标签',s.openTag,v=>act('settings.update',{openTag:v})),field('结束标签',s.closeTag,v=>act('settings.update',{closeTag:v})));
         advanced.append(el('h3','','内置提示词设置'));
         for(const [key,title,description] of [

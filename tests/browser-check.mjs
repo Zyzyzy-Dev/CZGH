@@ -41,7 +41,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2-dev\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.2-dev\.2$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -49,14 +49,14 @@ try{
  await frame.locator('#settings').click();
  await frame.getByText('数据库记忆（世界书导出）',{exact:true}).waitFor();
  await frame.getByText(/已读取 1 个数据库导出条目/).waitFor();
- await frame.getByLabel('数据库纪要',{exact:true}).check();
+ await frame.getByLabel('数据库',{exact:true}).check();
  await frame.getByLabel('数据库纪要世界书',{exact:true}).selectOption('设定集');
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseBook==='设定集');
  await frame.getByText('来源：设定集',{exact:true}).waitFor();
  await frame.getByLabel('最多读取纪要条数',{exact:true}).fill('12');
  await frame.getByLabel('最多读取纪要条数',{exact:true}).press('Tab');
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.databaseLimit===12);
- await frame.getByLabel('数据库纪要',{exact:true}).uncheck();
+ await frame.getByLabel('数据库',{exact:true}).uncheck();
  await frame.getByLabel('数据库纪要世界书',{exact:true}).waitFor({state:'hidden'});
  await page.reload();await page.locator('#czgh-planner-menu').click();
  await frame.getByLabel('选择预设',{exact:true}).waitFor();
