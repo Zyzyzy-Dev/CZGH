@@ -1,4 +1,6 @@
 /* 规划标签识别、提示构建、结果校验和配置迁移。 */
+const previousPlannerInstruction = '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备和创作规划，随后会由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。';
+const previousWriterInstruction = '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。';
 export const defaults = Object.freeze({
     autoReply: true,
     enabled: false,
@@ -13,8 +15,8 @@ export const defaults = Object.freeze({
     openTag: '',
     closeTag: '',
     rules: '[]',
-    plannerInstruction: '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备和创作规划，随后会由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。',
-    writerInstruction: '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。',
+    plannerInstruction: '你正在参与一次分阶段的协作写作。本轮由你按照本次输入中的写作与规划指令，完成写作准备和创作规划。请结合上下文进行规划。随后由另一位写作同事结合原始资料与你生成的规划完成正文及其他要求的成品。请沿用生效指令指定的身份、语言和创作方式。',
+    writerInstruction: '你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，继续完成正文和要求的其他成品，无需重新输出规划区块。',
 });
 
 
@@ -25,7 +27,7 @@ const previousPlanningGuidance = `请按当前预设已启用的创作规划步�
 4. 完整处理各步骤及子项，不用笼统总结替代后续步骤。条件步骤按预设条件处理；资料缺失时说明缺失，区分已发生事实与本轮拟写安排。列举、信息读取、召回、核算、例句和预写片段等明确任务仍需完成，不仅仅复制任务指令。
 5. 预设中涉及正文与附加成品的要求，是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的同事根据你本轮交付的规划完成。
 6. 交接内容以预设指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加预设未要求的自我评价、总结、检查报告或结束宣言。`;
-const planningGuidance = `请按当前预设已启用的创作规划步骤及顺序完成交接，保留原有标题、层级及编号：
+const previousFullPlanningGuidance = `请按当前预设已启用的创作规划步骤及顺序完成交接，保留原有标题、层级及编号：
 1. 提问式引导规划步骤需逐项回答；
 2. 非提问式的陈述性步骤指导必须先一字不差的写出该陈述性指导的原文，再在同一子项下另起一行写“本轮安排：”说明该指导用于本轮正文中的执行方式。陈述性指导原文与安排必须分开，安排不能替代陈述性指导原文。
 - 当一个子项同时包含陈述性指导与提问式引导时，需先一字不差的写出该陈述性指导的原文，再另起一行回答提问式引导。
@@ -33,7 +35,16 @@ const planningGuidance = `请按当前预设已启用的创作规划步骤及顺
 4. 输入中的各个规划步骤与输出中的步骤须逐一对应，保留各自的标题、顺序及子项，不因主题相近而合并、改名或相互替代。每个召回、读取、检查和核算任务，都应在所属步骤下写出具体结果或本轮处理安排；不能仅以“已检查”“按规则执行”“后台自动维护”等承诺代替。资料缺失时，在对应子项下明确说明缺少什么；条件不成立时，按原条件说明不适用。
 5. 涉及正文写作与附加成品的要求，是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留与写出，方便写作同事查看。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的写作同事根据你本轮交付的规划来完成。
 6. 交接内容以指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加未要求的自我评价、总结、检查报告或结束宣言。`;
-const writingGuidance = `将规划中的安排落实到创作中，同时继续遵守原预设的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原预设要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
+const planningGuidance = `请按本次输入中明确要求执行的创作规划步骤及顺序完成交接，保留原有标题、层级及编号：
+1. 提问式引导规划步骤需逐项回答；
+2. 非提问式的陈述性指导必须先一字不差的写出该陈述性指导的原文，再在同一子项下另起一行写“本轮安排：”说明该指导用于本轮正文中的执行方式。陈述性指导原文与安排必须分开，安排不能替代陈述性指导原文。（这一步很重要，因为你的另一位写作同事需要你告知相关非提问式陈述性指导的信息）
+- 当一个子项同时包含陈述性指导与提问式引导时，需先一字不差的写出该陈述性指导的原文，再另起一行回答提问式引导时。
+3. 非提问式的陈述性步骤指导原文保留措辞、否定词、数值及标签，不概括、不改写、不替换为执行说明。另起一行写的安排遵循陈述性指导要求的作用对象、单位、范围、强度、条件及否定关系；不自行增加规则。
+4. 输入中的各个规划步骤与输出中的步骤须逐一对应，保留各自的标题、顺序及子项，不因主题相近而合并、改名或相互替代。每个召回、读取、检查和核算任务，都应在所属步骤下写出具体结果或本轮处理安排；不能仅以“已检查”“按规则执行”“后台自动维护”等承诺代替。资料缺失时，在对应子项下明确说明缺少什么；条件不成立时，按原条件说明不适用。
+5. 涉及正文写作与附加成品的要求，这是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留与写出要求，方便写作同事查看。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的写作同事根据你本轮交付的规划来完成。
+6. 交接内容以指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加未要求的自我评价、总结、检查报告或结束宣言。`;
+const previousWritingGuidance = `将规划中的安排落实到创作中，同时继续遵守原预设的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原预设要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
+const writingGuidance = `将规划中的安排落实到正文创作中，同时继续遵守原始上下文的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原始上下文要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
 export const promptDefaults = Object.freeze({
     plannerPrompt: `${defaults.plannerInstruction}\n${planningGuidance}`,
     writerPrompt: `${defaults.writerInstruction}\n${writingGuidance}`,
@@ -83,6 +94,8 @@ export function migrateSettings(saved = {}) {
     if (saved.plannerInstruction === "按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号、子问题及声明式要求，区分已发生事实与本轮拟写安排。") merged.plannerInstruction = defaults.plannerInstruction;
     if (saved.writerInstruction === "本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。") merged.writerInstruction = defaults.writerInstruction;
     if (saved.plannerInstruction === "你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备，随后由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。") merged.plannerInstruction = defaults.plannerInstruction;
+    if (saved.plannerInstruction === previousPlannerInstruction) merged.plannerInstruction = defaults.plannerInstruction;
+    if (saved.writerInstruction === previousWriterInstruction) merged.writerInstruction = defaults.writerInstruction;
     if (!saved.tagMode) {
         // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
         merged.tagMode = saved.openTag && saved.closeTag
@@ -90,8 +103,11 @@ export function migrateSettings(saved = {}) {
         if (merged.tagMode === 'auto') { merged.openTag = ''; merged.closeTag = ''; }
     }
     if (typeof saved.plannerPrompt !== 'string') merged.plannerPrompt = `${merged.plannerInstruction}\n${planningGuidance}`;
-    if (saved.plannerPrompt === `${defaults.plannerInstruction}\n${previousPlanningGuidance}`) merged.plannerPrompt = promptDefaults.plannerPrompt;
     if (typeof saved.writerPrompt !== 'string') merged.writerPrompt = `${merged.writerInstruction}\n${writingGuidance}`;
+    const normalize = value => typeof value === 'string' ? value.replace(/\r\n/g, '\n') : value;
+    const oldPlannerPrompts = [previousPlanningGuidance, previousFullPlanningGuidance].map(guidance => previousPlannerInstruction + '\n' + guidance);
+    if (oldPlannerPrompts.includes(normalize(saved.plannerPrompt))) merged.plannerPrompt = promptDefaults.plannerPrompt;
+    if (normalize(saved.writerPrompt) === previousWriterInstruction + '\n' + previousWritingGuidance) merged.writerPrompt = promptDefaults.writerPrompt;
     return merged;
 }
 

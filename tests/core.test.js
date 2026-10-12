@@ -13,7 +13,7 @@ test('collaborative defaults migrate both previous instructions without overridi
     assert.equal(updated.plannerInstruction,defaults.plannerInstruction);
     assert.equal(updated.writerInstruction,defaults.writerInstruction);
     assert.match(updated.plannerInstruction,/分阶段的协作写作/);
-    assert.match(updated.writerInstruction,/规划同事/);
+    assert.match(updated.writerInstruction,/你的同事/);
     const custom=migrateSettings({plannerInstruction:'我的规划',writerInstruction:'我的正文'});
     assert.equal(custom.plannerInstruction,'我的规划');assert.equal(custom.writerInstruction,'我的正文');
     const message=planningMessages([],{...config,...updated}).at(-1).content;
@@ -52,8 +52,8 @@ test('both stages preserve expanded memory, worldbook, history and multimodal in
     assert.deepEqual(writer.slice(0, -1), snapshot);
     planner[0].content = 'changed';
     assert.deepEqual(original, snapshot);
-    assert.match(writer.at(-1).content, /正文和预设要求的其他成品/);
-    assert.match(writer.at(-1).content, /原预设要求生成的成品照常生成/);
+    assert.match(writer.at(-1).content, /正文和要求的其他成品/);
+    assert.match(writer.at(-1).content, /原始上下文要求生成的成品照常生成/);
 });
 test('exact adapter edits instructions but never history/user input', () => {
     const messages = ['system', 'developer', 'user', 'assistant'].map(role => ({ role, content: '先输出规划；再生成状态栏' }));
@@ -113,7 +113,7 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.match(plan,/提问式引导规划步骤需逐项回答/);
     assert.match(plan,/原有标题、层级及编号/);
     assert.match(plan,/一字不差的写出该陈述性指导的原文/);
-    assert.match(plan,/1\. 提问式引导规划步骤需逐项回答；\n2\. 非提问式的陈述性步骤指导/);
+    assert.match(plan,/1\. 提问式引导规划步骤需逐项回答；\n2\. 非提问式的陈述性指导/);
     assert.doesNotMatch(plan,/变量宏|宏占位符|是否使用宏|展开后的/);
     assert.doesNotMatch(plan,/不输出状态栏/);
     assert.match(plan,/再另起一行回答提问式引导/);
