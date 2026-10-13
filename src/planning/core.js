@@ -1,6 +1,7 @@
 /* 规划标签识别、提示构建、结果校验和配置迁移。 */
 const previousPlannerInstruction = '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备和创作规划，随后会由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。';
 const previousWriterInstruction = '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。';
+const previousDirectWriterInstruction = "你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，继续完成正文和要求的其他成品，无需重新输出规划区块。";
 export const defaults = Object.freeze({
     autoReply: true,
     enabled: false,
@@ -16,7 +17,7 @@ export const defaults = Object.freeze({
     closeTag: '',
     rules: '[]',
     plannerInstruction: '你正在参与一次分阶段的协作写作。本轮由你按照本次输入中的写作与规划指令，完成写作准备和创作规划。请结合上下文进行规划。随后由另一位写作同事结合原始资料与你生成的规划完成正文及其他要求的成品。请沿用生效指令指定的身份、语言和创作方式。',
-    writerInstruction: '你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，继续完成正文和要求的其他成品，无需重新输出规划区块。',
+    writerInstruction: '你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，直接开始输出正文和要求的其他成品，无需重新输出创作规划区块。',
 });
 
 
@@ -43,17 +44,34 @@ const previousHandoffGuidance = `请按本次输入中明确要求执行的创�
 4. 输入中的各个规划步骤与输出中的步骤须逐一对应，保留各自的标题、顺序及子项，不因主题相近而合并、改名或相互替代。每个召回、读取、检查和核算任务，都应在所属步骤下写出具体结果或本轮处理安排；不能仅以“已检查”“按规则执行”“后台自动维护”等承诺代替。资料缺失时，在对应子项下明确说明缺少什么；条件不成立时，按原条件说明不适用。
 5. 涉及正文写作与附加成品的要求，这是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留与写出要求，方便写作同事查看。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的写作同事根据你本轮交付的规划来完成。
 6. 交接内容以指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加未要求的自我评价、总结、检查报告或结束宣言。`;
-const planningGuidance = `请按本次输入中明确要求执行的创作规划步骤及顺序完成交接，保留原有标题、层级及编号。按指令的用途区分执行与交接，不按是否为问句决定是否复述：
+const previousPurposeGuidance = `请按本次输入中明确要求执行的创作规划步骤及顺序完成交接，保留原有标题、层级及编号。按指令的用途区分执行与交接，不按是否为问句决定是否复述：
 1. 提问、填写、选择、比较与校验类任务，逐项直接输出答案、选择依据、检查结果、必要修正或要求的预写成品，不重复题干、提问列表、填写说明或操作口令。保留用于对应的编号和简短子项标题，不能只写“已检查”“符合要求”。
 2. 需要后续写作同事继续执行的正文及附加成品要求，才在所属步骤下保留对应的陈述性指导原文，并另起一行写“本轮安排：”说明本轮怎样落实。只保留承担交付约束的必要原句，不整段复制周围的规划方法说明。涉及作用对象、单位、范围、强度、条件、否定关系、数值及标签的要求必须准确保留，不概括、不改写、不自行增加规则。
 3. 仅指导本轮如何规划的内容，例如“先选一条路径”“逐项填写”“不通过则返回重写”、评分定义、操作流程、教学说明及供理解的正反例，应在本轮执行并输出结果，不作为题干抄进交接。一个子项同时包含规划操作和正文要求时，分别处理：输出操作结果，保留后续仍需执行的具体要求。预设明确要求的预写句、例句、核算与格式确认属于交付结果，不能因减少题干而省略。
 4. 需要执行的规划步骤与输出步骤逐一对应，不因主题相近而合并、改名或相互替代。每个召回、读取、检查和核算任务，都在所属步骤下给出具体结果；确需后续执行的事项写清本轮处理安排，不能以“后台自动维护”等承诺替代。资料缺失时说明缺少什么；条件不成立时说明不适用，不复制未选分支的完整题干。
 5. 涉及正文写作与附加成品的要求，是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留与写出要求，方便写作同事查看。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的写作同事根据你本轮交付的规划来完成。
 6. 交接内容以指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加未要求的自我评价、总结、检查报告或结束宣言。`;
+const planningGuidance = `请按本次输入中明确要求执行的创作规划步骤及顺序完成交接，保留原有标题、层级及编号：
+
+1. 提问式引导规划步骤需逐项回答。无需重复问题或题干，但不得省略其中要求完成的任务。
+
+2. 子项中要求后续正文或附加成品遵守的非提问式陈述性指导，必须先一字不差地写出相关指导的原文，再在同一子项下另起一行写“本轮安排：”，说明该指导用于本轮成品中的执行方式。陈述性指导原文与安排必须分开，安排不能替代指导原文。（这一步很重要，因为另一位写作同事需要准确获知并执行这些要求。）
+- 是否保留指导原文，应根据其作用对象判断，不能仅根据它是否为问句判断。仅用于指导你完成规划的操作说明，应执行并写出具体结果，无需复述说明原文；需要后续写作同事继续执行的成品要求，才按上述方式保留原文并写出安排。
+- 当一个子项同时包含成品要求与提问式引导时，先保留相关成品要求的原文并写出本轮安排，再逐项回答问题；不必抄写整个子项。
+- 各级步骤只需保留原有标题、层级及编号，不必重复标题之外的问题、题干或方法说明。题干中若包含后续成品必须遵守的要求，仍需提取并保留相关指导原文，不能随题干一并省略。
+- 需要保留的陈述性指导原文不得概括、改写或替换为执行说明，须保留原有措辞、否定词、数值及标签。另起一行写出的安排应遵循原指导的作用对象、单位、范围、强度、条件及否定关系，不自行增加规则。
+- 如果规划指令明确要求逐字引用某段文本，或写出拟写片段、示例及其他具体内容，仍需按要求完成，不以“不重复题干”为由省略。
+
+3. 输入中的各个规划步骤与输出中的步骤须逐一对应，保留各自的标题、顺序及子项，不因主题相近而合并、改名或相互替代。每个召回、读取、检查和核算任务，都应在所属步骤下写出具体结果或本轮处理安排；不能仅以“已检查”“按规则执行”“后台自动维护”等承诺代替。资料缺失时，在对应子项下明确说明缺少什么；条件不成立时，按原条件说明不适用。
+
+4. 涉及正文写作与附加成品的要求，是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留并写出，方便写作同事查看。格式确认按该步骤原文作答，不用本插件的规划外层标签替代正文成品格式。正文及其他成品由下一阶段的写作同事根据原始资料与你本轮交付的规划完成；本轮拟写安排不得表述为已经发生的事实。
+
+5. 交接内容以指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加未要求的自我评价、总结、检查报告或结束宣言。`;
 const previousWritingGuidance = `将规划中的安排落实到创作中，同时继续遵守原预设的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原预设要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
-const writingGuidance = `将规划中的安排落实到正文创作中，同时继续遵守原始上下文的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原始上下文要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
+const previousContextWritingGuidance = `将规划中的安排落实到正文创作中，同时继续遵守原始上下文的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原始上下文要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
+const writingGuidance = `请将规划中的安排落实到正文创作中，同时继续遵守原始上下文的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原始上下文要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。`;
 export const promptDefaults = Object.freeze({
-    plannerPrompt: `${defaults.plannerInstruction}\n${planningGuidance}`,
+    plannerPrompt: `${defaults.plannerInstruction}\n\n${planningGuidance}`,
     writerPrompt: `${defaults.writerInstruction}\n${writingGuidance}`,
 });
 
@@ -102,20 +120,20 @@ export function migrateSettings(saved = {}) {
     if (saved.writerInstruction === "本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。") merged.writerInstruction = defaults.writerInstruction;
     if (saved.plannerInstruction === "你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备，随后由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。") merged.plannerInstruction = defaults.plannerInstruction;
     if (saved.plannerInstruction === previousPlannerInstruction) merged.plannerInstruction = defaults.plannerInstruction;
-    if (saved.writerInstruction === previousWriterInstruction) merged.writerInstruction = defaults.writerInstruction;
+    if (saved.writerInstruction === previousWriterInstruction || saved.writerInstruction === previousDirectWriterInstruction) merged.writerInstruction = defaults.writerInstruction;
     if (!saved.tagMode) {
         // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
         merged.tagMode = saved.openTag && saved.closeTag
             && (saved.openTag !== '<Abstract>' || saved.closeTag !== '</Abstract>') ? 'manual' : 'auto';
         if (merged.tagMode === 'auto') { merged.openTag = ''; merged.closeTag = ''; }
     }
-    if (typeof saved.plannerPrompt !== 'string') merged.plannerPrompt = `${merged.plannerInstruction}\n${planningGuidance}`;
+    if (typeof saved.plannerPrompt !== 'string') merged.plannerPrompt = `${merged.plannerInstruction}\n\n${planningGuidance}`;
     if (typeof saved.writerPrompt !== 'string') merged.writerPrompt = `${merged.writerInstruction}\n${writingGuidance}`;
     const normalize = value => typeof value === 'string' ? value.replace(/\r\n/g, '\n') : value;
     const oldPlannerPrompts = [previousPlanningGuidance, previousFullPlanningGuidance].map(guidance => previousPlannerInstruction + '\n' + guidance);
-    oldPlannerPrompts.push(defaults.plannerInstruction + '\n' + previousHandoffGuidance);
+    oldPlannerPrompts.push(...[previousHandoffGuidance, previousPurposeGuidance].map(guidance => defaults.plannerInstruction + '\n' + guidance));
     if (oldPlannerPrompts.includes(normalize(saved.plannerPrompt))) merged.plannerPrompt = promptDefaults.plannerPrompt;
-    if (normalize(saved.writerPrompt) === previousWriterInstruction + '\n' + previousWritingGuidance) merged.writerPrompt = promptDefaults.writerPrompt;
+    if ([previousWriterInstruction + '\n' + previousWritingGuidance, previousDirectWriterInstruction + '\n' + previousContextWritingGuidance].includes(normalize(saved.writerPrompt))) merged.writerPrompt = promptDefaults.writerPrompt;
     return merged;
 }
 
@@ -147,7 +165,7 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerPrompt ?? `${settings.plannerInstruction}\n${planningGuidance}`}
+        `${settings.plannerPrompt ?? `${settings.plannerInstruction}\n\n${planningGuidance}`}
 请将完整规划放入当前预设指定的标签中：${settings.openTag}规划内容${settings.closeTag}。` }];
 }
 

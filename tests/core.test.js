@@ -98,8 +98,8 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.match(message,/不增加未要求/);
     assert.match(message,/每个召回、读取、检查和核算任务/);
     assert.doesNotMatch(message,/不输出规划区块之外的正文、顶栏、状态栏/);
-    assert.match(message,/在所属步骤下给出具体结果/);
-    assert.match(message,/需要执行的规划步骤与输出步骤逐一对应/);
+    assert.match(message,/在所属步骤下写出具体结果/);
+    assert.match(message,/输入中的各个规划步骤与输出中的步骤须逐一对应/);
     assert.match(message,/<Abstract>/);
 });
 
@@ -116,7 +116,7 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.doesNotMatch(plan,/不输出状态栏/);
 
     assert.match(plan,/本轮安排：/);
-    assert.match(plan,/作用对象、单位、范围、强度、条件、否定关系/);
+    assert.match(plan,/作用对象、单位、范围、强度、条件及否定关系/);
     assert.doesNotMatch(plan,/不自行补充实施方案/);
     const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
     assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
@@ -149,12 +149,12 @@ test('extract first complete planning block and exclude all surrounding output f
 });
 
 
-test('dev22 planning default upgrades to the approved six-part handoff',()=>{
+test('dev22 planning default upgrades to the approved handoff',()=>{
     const backup=JSON.parse(readFileSync(new URL('../docs/prompt-backups/0.4.0-dev.22.json',import.meta.url),'utf8'));
     const updated=migrateSettings({plannerInstruction:backup.plannerInstruction});
     assert.match(updated.plannerInstruction,/写作准备和创作规划/);
     assert.equal(updated.plannerInstruction,defaults.plannerInstruction);
     const message=planningMessages([],{...updated,openTag:'<ScenePlan>',closeTag:'</ScenePlan>'}).at(-1).content;
-    assert.match(message,/6\. 交接内容/);
+    assert.match(message,/5\. 交接内容/);
     assert.ok(message.endsWith('<ScenePlan>规划内容</ScenePlan>。'));
 });

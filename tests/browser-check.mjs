@@ -41,7 +41,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.3-dev\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.3-dev\.2$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -95,9 +95,9 @@ try{
  await frame.getByRole('button',{name:'编辑插件内置提示词',exact:true}).click();
  const editor=frame.getByRole('dialog',{name:'编辑插件内置提示词',exact:true});
  const originalPrompt=await editor.getByLabel('提示词内容',{exact:true}).inputValue();
- assert.match(originalPrompt,/6\. 交接内容/);
+ assert.match(originalPrompt,/5\. 交接内容/);
  assert.match(originalPrompt,/本轮由你按照本次输入中的写作与规划指令/);
- assert.match(originalPrompt,/不重复题干、提问列表、填写说明或操作口令/);
+ assert.match(originalPrompt,/无需重复问题或题干，但不得省略其中要求完成的任务/);
  await editor.getByLabel('提示词内容',{exact:true}).fill('测试规划自定义');
  await editor.getByRole('button',{name:'完成',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.plannerPrompt==='测试规划自定义');

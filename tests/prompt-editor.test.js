@@ -3,16 +3,26 @@ import assert from 'node:assert/strict';
 import { migrateSettings, planningMessages, writingMessages } from '../src/planning/core.js';
 import { cleanSettings } from '../src/bridge/protocol.js';
 
-test('0.5.2 planning default upgrades without overwriting a modified handoff or writer prompt',async()=>{
+test('released defaults upgrade both prompts while edited and empty prompts survive',async()=>{
     const {readFile}=await import('node:fs/promises');
-    const old=JSON.parse(await readFile(new URL('../docs/prompt-backups/0.5.2.json',import.meta.url),'utf8'));
-    const migrated=migrateSettings(old);
-    assert.notEqual(migrated.plannerPrompt,old.plannerPrompt);
-    assert.equal(migrated.writerPrompt,old.writerPrompt);
-    assert.deepEqual(migrateSettings(migrated),migrated);
-    const edited={plannerPrompt:old.plannerPrompt+'\n自定义保留',writerPrompt:'自定义正文'};
-    assert.equal(migrateSettings(edited).plannerPrompt,edited.plannerPrompt);
-    assert.equal(migrateSettings(edited).writerPrompt,edited.writerPrompt);
+    const {promptDefaults,defaults}=await import('../src/planning/core.js');
+    for(const version of ['0.5.2','0.5.3-dev.1']){
+        const old=JSON.parse(await readFile(new URL('../docs/prompt-backups/'+version+'.json',import.meta.url),'utf8'));
+        for(const saved of [old,{...old,plannerPrompt:old.plannerPrompt.replace(/\n/g,'\r\n'),writerPrompt:old.writerPrompt.replace(/\n/g,'\r\n')},{plannerInstruction:old.plannerInstruction??old.plannerPrompt.split("\n")[0],writerInstruction:old.writerInstruction??old.writerPrompt.split("\n")[0]}]){
+            const migrated=migrateSettings(saved);
+            assert.equal(migrated.plannerPrompt,promptDefaults.plannerPrompt);
+            assert.equal(migrated.writerPrompt,promptDefaults.writerPrompt);
+            assert.equal(migrated.writerInstruction,defaults.writerInstruction);
+            assert.deepEqual(migrateSettings(migrated),migrated);
+        }
+        for(const suffix of ['\n自定义保留',' ']){
+            const edited={plannerPrompt:old.plannerPrompt+suffix,writerPrompt:old.writerPrompt+suffix};
+            assert.equal(migrateSettings(edited).plannerPrompt,edited.plannerPrompt);
+            assert.equal(migrateSettings(edited).writerPrompt,edited.writerPrompt);
+        }
+        const mixed=migrateSettings({...old,plannerPrompt:'',writerPrompt:'自定义正文'});
+        assert.equal(mixed.plannerPrompt,'');assert.equal(mixed.writerPrompt,'自定义正文');
+    }
 });
 
 test('dev7 full defaults and legacy openings upgrade together while edited and empty prompts survive',async()=>{
@@ -38,7 +48,7 @@ test('dev7 full defaults and legacy openings upgrade together while edited and e
 
 test('editable prompts include all instructions and replace them without hidden fixed rules',()=>{
     const initial=migrateSettings({});
-    assert.match(initial.plannerPrompt,/6\. 交接内容/);
+    assert.match(initial.plannerPrompt,/5\. 交接内容/);
     assert.match(initial.writerPrompt,/规划未复述某项要求不代表该要求失效/);
     const custom=migrateSettings({...initial,...cleanSettings({plannerPrompt:'规划自定义',writerPrompt:'正文自定义'})});
     const config={...custom,openTag:'<Think>',closeTag:'</Think>'};
