@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.4-dev.1';
-import { entryKey } from '../planning/world-info.js?v=0.5.4-dev.1';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.4-dev.1';
-import { promptDefaults } from '../planning/core.js?v=0.5.4-dev.1';
-import { editAdditional } from './additional-editor.js?v=0.5.4-dev.1';
-import { editPrompt } from './prompt-editor.js?v=0.5.4-dev.1';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.4-dev.1';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.4';
+import { entryKey } from '../planning/world-info.js?v=0.5.4';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.4';
+import { promptDefaults } from '../planning/core.js?v=0.5.4';
+import { editAdditional } from './additional-editor.js?v=0.5.4';
+import { editPrompt } from './prompt-editor.js?v=0.5.4';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.4';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
