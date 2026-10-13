@@ -1,6 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPlanner } from '../src/host/planner.js';
+import { freezeCurrentRequest } from '../src/planning/current-request.js';
+
+for(const current of [true,false])test(`host tools with display functions survive planning using ${current?'current':'independent'} connection`,async()=>{
+    const listeners={},records=[];let stopped=0,sent;
+    const context={chatId:'c',extensionSettings:{},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>listeners[n]=f}};
+    const tool={type:'function',function:{name:'lookup',description:'Lookup',parameters:{type:'object'}},toString:function(){return `<div><b>${this.function.name}</b></div><div><small>${this.function.description}</small></div>`;}};
+    const data={type:'normal',chat_completion_source:'custom',custom_url:'https://example.com/v1',model:'body',stream:true,temperature:0.8,tools:[tool],tool_choice:'auto',messages:[{role:'user',content:[{type:'text',text:'hello'},{type:'image_url',image_url:{url:'data:image/png;base64,AA=='}}]}]};
+    const originalMessages=structuredClone(data.messages),originalTools=data.tools,originalFetch=globalThis.fetch;
+    globalThis.fetch=async(_,options)=>{sent=JSON.parse(options.body);return{ok:true,json:async()=>({choices:[{message:{content:'<Think>计划</Think>'},finish_reason:'stop'}]})};};
+    try{
+        createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){stopped++;},prepare:async({data:copy})=>{
+            assert.equal(Object.hasOwn(copy,'tools'),false);assert.equal(Object.hasOwn(copy,'tool_choice'),false);
+            assert.deepEqual(copy.messages,originalMessages);copy.messages[0].content[0].text='copy only';
+            return {messages:[{role:'system',content:'规划使用 <Think> 标签'}],request:current?freezeCurrentRequest(copy,{api_key_custom:[{id:'selected',active:true}]},JSON.parse):{model:'independent',custom_url:'https://example.com/v1'}};
+        },onPlanReady:r=>records.push(r)});
+        context.extensionSettings.czgh_external_planner.enabled=true;
+        await listeners.request(data);
+        assert.equal(stopped,0);assert.equal(records.length,1);assert.equal(sent.tools,undefined);assert.equal(sent.tool_choice,undefined);
+        assert.equal(data.tools,originalTools);assert.equal(data.tools[0],tool);assert.equal(data.tool_choice,'auto');assert.equal(data.stream,true);assert.equal(data.temperature,0.8);
+        assert.deepEqual(data.messages.slice(0,-1),originalMessages);assert.match(data.messages.at(-1).content,/计划/);
+    }finally{globalThis.fetch=originalFetch;}
+});
 test('planner uses independent messages and preserves body request while publishing a validated result',async()=>{
     const listeners={}; const records=[];
     const context={chatId:'c',characterId:1,extensionSettings:{},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>listeners[n]=f}};

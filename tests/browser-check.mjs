@@ -41,7 +41,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.3$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.4-dev\.1$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -256,12 +256,14 @@ try{
  await page.evaluate(()=>{window.testGeneration=(async()=>{
  for(const fn of listeners.started||[])await fn('normal');
  const data={type:'normal',stream:true,messages:[{role:'system',content:'只属于正文的系统指令'},{role:'user',content:'真实用户输入'}]};
+ const tool={type:'function',function:{name:'lookup',description:'Lookup',parameters:{type:'object'}},toString(){throw Error('Tool display callback must not run');}};
+ data.tools=[tool];data.tool_choice='auto';
  for(const fn of listeners.request||[])await fn(data);
  for(const fn of listeners.ended||[])await fn();
  context.chat.push({mes:'正文',swipe_id:0,extra:{},swipe_info:[{extra:{}}]});
  const mes=document.createElement('div');mes.className='mes';mes.setAttribute('mesid','1');const block=document.createElement('div');block.className='mes_block';mes.append(block);document.body.append(mes);
  for(const fn of listeners.received||[])await fn(1,'normal');
- return {data,record:context.chat[1].extra.czghCreativePlanning?.[0],saved:window.chatSaved};
+ return {data,toolPreserved:data.tools[0]===tool&&typeof data.tools[0].toString==='function',record:context.chat[1].extra.czghCreativePlanning?.[0],saved:window.chatSaved};
  })();});
  await floor.getByText('· 正在生成',{exact:true}).waitFor();
  assert.equal(await floor.locator('#cancel').getAttribute('data-icon'),'pause');
@@ -280,6 +282,8 @@ try{
  const generated=await page.evaluate(()=>window.testGeneration);
  await page.evaluate(()=>context.extensionSettings.czgh_external_planner.autoReply=true);
  assert.equal(generated.data.stream,true);
+ assert.equal(generated.toolPreserved,true);assert.equal(generated.data.tool_choice,'auto');
+ assert.equal(plannerRequest.tools,undefined);assert.equal(plannerRequest.tool_choice,undefined);
  assert.equal(JSON.parse(plannerRequest.custom_include_headers).Authorization,'Bearer browser-test-key');
  assert.equal(plannerRequest.stream,true);assert.equal(plannerRequest.model,'local-model');assert.ok(plannerRequest.secret_id.startsWith('czgh-local:'));
  assert.match(generated.data.messages.at(-1).content,/本轮测试规划/);

@@ -1,8 +1,9 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.3';
-import { createId } from '../bridge/id.js?v=0.5.3';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.3';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.3';
+import { readPlanResponse } from './stream.js?v=0.5.4-dev.1';
+import { createId } from '../bridge/id.js?v=0.5.4-dev.1';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.4-dev.1';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.4-dev.1';
+import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.4-dev.1';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -43,8 +44,7 @@ function abortPending() {
 async function requestPlan(messages, config, key, signal, progress, requestReady) {
     let body;
     if (config.request) {
-        body = { ...structuredClone(config.request), messages, stream: false, max_tokens: Number(config.maxTokens) };
-        delete body.tools; delete body.tool_choice; delete body.functions; delete body.function_call;
+        body = { ...clonePlanningRequest(config.request), messages, stream: false, max_tokens: Number(config.maxTokens) };
     } else if (config.profile) {
         const yaml = getYaml();
         body = profileRequest(config.profile, messages, config.maxTokens, text => {
@@ -100,7 +100,7 @@ async function onRequest(data) {
         let contextMessages = original;
         let prepared;
         if (prepare) {
-            prepared = await prepare({ data: structuredClone(data), config, signal: run.controller.signal });
+            prepared = await prepare({ data: clonePlanningRequest(data), config, signal: run.controller.signal });
             contextMessages = prepared.messages;
             config.request = prepared.request;
             config.profile = prepared.profile;

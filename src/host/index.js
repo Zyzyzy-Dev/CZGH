@@ -1,12 +1,12 @@
 /* 酒馆宿主入口：魔法棒面板、受限 RPC、规划请求和楼内 iframe 生命周期。 */
-import { attachPanelInteractions } from './panel-interactions.js?v=0.5.3';
+import { attachPanelInteractions } from './panel-interactions.js?v=0.5.4-dev.1';
 import { getRequestHeaders, stopGeneration, saveSettings } from '/script.js';
-import { createPlanner } from './planner.js?v=0.5.3';
-import { createWorkbench } from './workbench.js?v=0.5.3';
-import { createMessagePlans } from './message-plans.js?v=0.5.3';
-import { createGenerationBinding } from './generation-binding.js?v=0.5.3';
-import { migrateSchemes } from '../planning/schemes.js?v=0.5.3';
-import { CHANNEL, acceptsMessage, validateRpc, themeSnapshot } from '../bridge/protocol.js?v=0.5.3';
+import { createPlanner } from './planner.js?v=0.5.4-dev.1';
+import { createWorkbench } from './workbench.js?v=0.5.4-dev.1';
+import { createMessagePlans } from './message-plans.js?v=0.5.4-dev.1';
+import { createGenerationBinding } from './generation-binding.js?v=0.5.4-dev.1';
+import { migrateSchemes } from '../planning/schemes.js?v=0.5.4-dev.1';
+import { CHANNEL, acceptsMessage, validateRpc, themeSnapshot } from '../bridge/protocol.js?v=0.5.4-dev.1';
 const ID='czgh_external_planner';
 const ctx=()=>SillyTavern.getContext();
 const chatId=()=>JSON.stringify([ctx().chatId,ctx().characterId,ctx().groupId]);
@@ -16,7 +16,7 @@ function init(){
     const menu=document.querySelector('#extensions_menu')||document.querySelector('#extensionsMenu');if(!menu)return;initialized=true;
     const dialog=document.createElement('dialog');dialog.id='czgh-planner-container';dialog.setAttribute('aria-label','创作规划');
     for(const [key,value] of Object.entries({padding:'0',margin:'auto',border:'0',background:'transparent',width:'min(460px,96vw)',height:'min(840px,92dvh)','max-width':'96vw','max-height':'92dvh',overflow:'hidden','box-shadow':'0 24px 80px #101d3540, 0 4px 16px #101d351f','border-radius':'14px','clip-path':'inset(0 round 14px)',transform:'none'}))dialog.style.setProperty(key,value,'important');
-    const frame=document.createElement('iframe');frame.title='创作规划';frame.src=new URL('../ui/index.html?v=0.5.3',import.meta.url).href;
+    const frame=document.createElement('iframe');frame.title='创作规划';frame.src=new URL('../ui/index.html?v=0.5.4-dev.1',import.meta.url).href;
     frame.style.cssText='display:block!important;width:100%!important;height:100%!important;border:0!important;margin:0!important;padding:0!important;background:transparent!important;border-radius:14px!important;clip-path:inset(0 round 14px)!important;';dialog.append(frame);document.body.append(dialog);attachPanelInteractions(dialog);
     const send=(type,payload)=>frame.contentWindow?.postMessage({channel:CHANNEL,type,payload},location.origin);
     const theme=()=>themeSnapshot(getComputedStyle(document.body));
@@ -27,7 +27,7 @@ function init(){
         for(const record of records){
             const parent=document.querySelector(`.mes[mesid="${record.messageId}"] .mes_block`);if(!parent)continue;
             let item=panelFrames.get(record.messageId);
-            if(!item){const panel=document.createElement('iframe');panel.title='本楼创作规划';panel.src=new URL('../ui/message.html?v=0.5.3',import.meta.url).href;panel.style.cssText='display:block!important;width:100%!important;height:42px!important;border:0!important;margin:8px 0!important;background:transparent!important;';parent.append(panel);item={frame:panel,record};panelFrames.set(record.messageId,item);panel.addEventListener('load',()=>panel.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record:item.record,theme:theme(),appearance:ctx().extensionSettings[ID]?.appearance||'auto'}},location.origin));}
+            if(!item){const panel=document.createElement('iframe');panel.title='本楼创作规划';panel.src=new URL('../ui/message.html?v=0.5.4-dev.1',import.meta.url).href;panel.style.cssText='display:block!important;width:100%!important;height:42px!important;border:0!important;margin:8px 0!important;background:transparent!important;';parent.append(panel);item={frame:panel,record};panelFrames.set(record.messageId,item);panel.addEventListener('load',()=>panel.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record:item.record,theme:theme(),appearance:ctx().extensionSettings[ID]?.appearance||'auto'}},location.origin));}
             item.record=record;
             const deliver=()=>{item.timer=null;if(item.frame.isConnected)item.frame.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record:item.record,theme:theme(),appearance:ctx().extensionSettings[ID]?.appearance||'auto'}},location.origin);};
             if(record.phase==='streaming'){if(!item.timer)item.timer=setTimeout(deliver,60);}else{clearTimeout(item.timer);deliver();}
