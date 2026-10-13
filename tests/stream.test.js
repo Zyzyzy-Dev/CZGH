@@ -3,6 +3,49 @@ import assert from 'node:assert/strict';
 import { readPlanResponse } from '../src/host/stream.js';
 import { extractPlan } from '../src/planning/core.js';
 
+const claudeFrame=value=>'data: '+JSON.stringify(value)+'\n\n';
+function claudeEvents(reason='end_turn') {
+    return [{type:'message_start',message:{role:'assistant'}},
+        {type:'content_block_start',index:0,content_block:{type:'thinking',thinking:''}},
+        {type:'content_block_delta',index:0,delta:{type:'thinking_delta',thinking:'不应注入'}},
+        {type:'content_block_stop',index:0},
+        {type:'content_block_start',index:1,content_block:{type:'text',text:'<Think>'}},
+        {type:'content_block_delta',index:1,delta:{type:'text_delta',text:'完整规划</Think>'}},
+        {type:'content_block_stop',index:1},
+        {type:'message_delta',delta:{stop_reason:reason}},
+        {type:'message_stop'}];
+}
+
+test('native Claude SSE exposes only text, handles split bytes, and completes at message_stop',async()=>{
+    const bytes=new TextEncoder().encode(claudeEvents().map(claudeFrame).join(''));let offset=0;const previews=[];
+    const result=await readPlanResponse(new Response(new ReadableStream({pull(c){if(offset===bytes.length)c.close();else c.enqueue(bytes.slice(offset,++offset));}})),text=>previews.push(text));
+    assert.equal(result.message.content,'<Think>完整规划</Think>');assert.equal(result.finish_reason,'stop');
+    assert.deepEqual(previews,['<Think>','<Think>完整规划</Think>']);
+});
+
+test('Claude requires message_stop even after stop_reason, and then releases an open transport',async()=>{
+    let controller,cancelled=false,settled=false;
+    const response=new Response(new ReadableStream({start(c){controller=c;c.enqueue(new TextEncoder().encode(claudeEvents().slice(0,-1).map(claudeFrame).join('')));},cancel(){cancelled=true;}}));
+    const pending=readPlanResponse(response).then(result=>{settled=true;return result;});let timer;
+    try{
+        await new Promise(resolve=>setTimeout(resolve,10));assert.equal(settled,false);
+        controller.enqueue(new TextEncoder().encode(claudeFrame({type:'message_stop'})));
+        const result=await Promise.race([pending,new Promise(resolve=>timer=setTimeout(()=>resolve(null),100))]);
+        assert.ok(result,'message_stop must finish without EOF');assert.equal(cancelled,true);
+    }finally{clearTimeout(timer);if(!cancelled)controller.close();await pending.catch(()=>{});}
+});
+
+test('Claude truncation remains blocked and incomplete or tool responses are not accepted as plans',async()=>{
+    for(const reason of ['max_tokens','model_context_window_exceeded']){
+        const result=await readPlanResponse(new Response(claudeEvents(reason).map(claudeFrame).join('')));
+        assert.equal(result.finish_reason,'length');
+        assert.throws(()=>extractPlan(result.message.content,{openTag:'<Think>',closeTag:'</Think>'},result.finish_reason),/截断/);
+    }
+    for(const reason of ['tool_use','pause_turn','refusal',null])await assert.rejects(readPlanResponse(new Response(claudeEvents(reason).map(claudeFrame).join(''))));
+    await assert.rejects(readPlanResponse(new Response(claudeEvents().slice(0,-1).map(claudeFrame).join('')+'data: [DONE]\n\n')),/中断/);
+    await assert.rejects(readPlanResponse(new Response(claudeEvents().slice(0,-1).map(claudeFrame).join(''))),/中断/);
+});
+
 test('a partial usage trailer after terminal choice does not invalidate a finished response',async()=>{
     const response=new Response('data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}\n\ndata: {"usage":');
     const result=await readPlanResponse(response);assert.equal(result.message.content,'done');

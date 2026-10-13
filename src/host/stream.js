@@ -7,6 +7,9 @@ export async function readPlanResponse(response, onText = () => {}, signal) {
     if (!response.body?.getReader) return jsonChoice(await response.json());
     const reader = response.body.getReader(), decoder = new TextDecoder();
     let buffer = '', text = '', finish = null, mode = null, complete = false;
+    let claude = false, claudeStopReason = null;
+    const textBlocks = new Set();
+    const append = value => { if (typeof value === 'string' && value) { text += value; onText(text); } };
     const consume = event => {
         const payload = event.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n').trim();
         if (!payload) return;
@@ -14,8 +17,28 @@ export async function readPlanResponse(response, onText = () => {}, signal) {
         let result;
         try { result = JSON.parse(payload); } catch { throw new Error('规划流式响应格式错误。'); }
         if (result.error) throw new Error('规划流式 API 返回错误。');
+        // TT forwards native Claude SSE; reasoning/tool blocks are not prose.
+        if (result.type === 'message_start') {
+            if (claude || text || finish) throw new Error('规划流式响应包含重复或混合消息。');
+            claude = true; return;
+        }
+        if (claude) {
+            if (result.choices) throw new Error('规划流式响应混用了不同接口格式。');
+            if (result.type === 'content_block_start') {
+                if (result.content_block?.type === 'tool_use') throw new Error('规划接口返回了工具调用，未生成完整规划。');
+                if (result.content_block?.type === 'text') { textBlocks.add(result.index); append(result.content_block.text); }
+            } else if (result.type === 'content_block_delta' && result.delta?.type === 'text_delta' && textBlocks.has(result.index)) append(result.delta.text);
+            else if (result.type === 'content_block_stop') textBlocks.delete(result.index);
+            else if (result.type === 'message_delta' && result.delta?.stop_reason) claudeStopReason = result.delta.stop_reason;
+            else if (result.type === 'message_stop') {
+                if (['end_turn','stop_sequence'].includes(claudeStopReason)) finish = 'stop';
+                else if (['max_tokens','model_context_window_exceeded'].includes(claudeStopReason)) finish = 'length';
+                else throw new Error('规划接口未正常完成文本生成，未注入正文。');
+            }
+            return;
+        }
         const choice = result.choices?.[0];
-        if (typeof choice?.delta?.content === 'string') { text += choice.delta.content; onText(text); }
+        append(choice?.delta?.content);
         if (choice?.finish_reason) finish = choice.finish_reason;
     };
     try {

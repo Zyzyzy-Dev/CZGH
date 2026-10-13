@@ -21,7 +21,12 @@ export function profileRequest(profile, messages, maxTokens, parseYaml) {
     if(profile.additional!=null&&(typeof profile.additional!=='object'||Array.isArray(profile.additional)))throw new Error('附加参数结构无效。');
     const body = { chat_completion_source: 'custom', custom_url: profile.connection.custom_url,
         secret_id: profile.keyRef ? `czgh-local:${profile.keyRef}` : profile.secretId, model: profile.model, messages: structuredClone(messages), stream: false, max_tokens: Number(maxTokens) };
-    const protectedFields = new Set(['messages', 'model', 'stream', 'max_tokens', 'max_completion_tokens', 'prompt', 'tools', 'tool_choice', 'functions', 'function_call', 'n', 'secret_id', 'chat_completion_source', 'custom_url', 'reverse_proxy', 'proxy_password', '__proto__', 'constructor', 'prototype']);
+    const format = profile.connection.custom_api_format;
+    if (format) {
+        if (!['openai_compat','openai_responses','claude_messages','gemini_interactions','gemini_generate_content'].includes(format)) throw new Error('API 方案接口格式尚未支持。');
+        body.custom_api_format = format;
+    }
+    const protectedFields = new Set(['messages', 'model', 'stream', 'max_tokens', 'max_completion_tokens', 'prompt', 'tools', 'tool_choice', 'functions', 'function_call', 'n', 'secret_id', 'chat_completion_source', 'custom_url', 'custom_api_format', 'reverse_proxy', 'proxy_password', '__proto__', 'constructor', 'prototype']);
     for (const field of ['custom_include_body', 'custom_exclude_body', 'custom_include_headers']) {
         const raw = profile.additional?.[field];
         if(raw!==undefined&&typeof raw!=='string')throw new Error('附加参数必须为 YAML 文本。');

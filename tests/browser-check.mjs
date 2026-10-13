@@ -20,7 +20,26 @@ const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{window.sourceReads=(window.sourceReads||0)+1;if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:window.worldComment||'森林',content:window.worldContent||'森林里住着精灵。',disable:false},...Object.fromEntries(Array.from({length:window.worldEntryCount||0},(_,i)=>[i+2,{uid:i+2,constant:true,comment:'世界条目 '+i,content:'测试',disable:false}]))}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
-    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.write('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\n');if(keepStreamOpen){await new Promise(resolve=>res.once('close',resolve));return;}res.end('data: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
+    if(req.url==='/api/backends/chat-completions/generate'){
+        let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);
+        if(plannerRequest.stream&&plannerRequest.custom_api_format==='claude_messages'){
+            res.setHeader('Content-Type','text/event-stream');
+            for(const event of [
+                {type:'message_start',message:{role:'assistant',content:[]}},
+                {type:'content_block_start',index:0,content_block:{type:'thinking',thinking:''}},
+                {type:'content_block_delta',index:0,delta:{type:'thinking_delta',thinking:'不可作为规划的内部思考'}},
+                {type:'content_block_stop',index:0},
+                {type:'content_block_start',index:1,content_block:{type:'text',text:''}},
+                {type:'content_block_delta',index:1,delta:{type:'text_delta',text:'<Think>Claude 测试规划</Think>'}},
+                {type:'content_block_stop',index:1},
+                {type:'message_delta',delta:{stop_reason:'end_turn'}},
+                {type:'message_stop'},
+            ])res.write('data: '+JSON.stringify(event)+'\n\n');
+            // Completion must not wait for transport EOF.
+            await new Promise(resolve=>res.once('close',resolve));return;
+        }
+        if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.write('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\n');if(keepStreamOpen){await new Promise(resolve=>res.once('close',resolve));return;}res.end('data: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;
+    }
     if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{window.stopCount=(window.stopCount||0)+1;};export const saveSettings=async()=>{if(window.toggleSaveGate)await window.toggleSaveGate;window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
@@ -49,7 +68,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5-dev\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5-dev\.2$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -384,6 +403,31 @@ try{
  assert.ok(editorBounds.scroll<=editorBounds.client+1);
  if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'prompt-editor-mobile.png')});
  await editor.getByRole('button',{name:'取消',exact:true}).click();
+ // Copy TT's current protocol, persist it through editing, then consume native SSE.
+ await page.evaluate(()=>Object.assign(context.chatCompletionSettings,{chat_completion_source:'custom',custom_api_format:'claude_messages',custom_model:'claude-test',custom_url:'https://example.org/v1'}));
+ await frame.getByLabel('API 方案',{exact:true}).selectOption('current');
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.apiSelection==='current');
+ await frame.getByRole('button',{name:'新建 API 方案',exact:true}).click();
+ await frame.getByLabel('方案名称',{exact:true}).fill('Claude 复制测试');
+ await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.some(x=>x.name==='Claude 复制测试'));
+ await frame.getByLabel('模型',{exact:true}).fill('claude-edited');
+ await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).click();
+ await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.some(x=>x.payload.model==='claude-edited'));
+ const copied=await page.evaluate(()=>context.extensionSettings.czgh_external_planner.schemes.api.find(x=>x.name==='Claude 复制测试').payload);
+ assert.equal(copied.connection.custom_api_format,'claude_messages');assert.equal(copied.secretId,'s1');
+ await frame.getByRole('button',{name:'关闭',exact:true}).click();
+ const claude=await page.evaluate(async()=>{
+     const data={type:'normal',stream:true,messages:[{role:'user',content:'Claude 流式兼容测试'}]};
+     for(const fn of listeners.request||[])await fn(data);
+     return {data,settings:context.chatCompletionSettings};
+ });
+ assert.equal(plannerRequest.custom_api_format,'claude_messages');assert.equal(plannerRequest.model,'claude-edited');
+ assert.equal(plannerRequest.secret_id,'s1');assert.equal(plannerRequest.stream,true);
+ assert.match(claude.data.messages.at(-1).content,/Claude 测试规划/);
+ assert.ok(!JSON.stringify(claude.data.messages).includes('不可作为规划的内部思考'));
+ assert.equal(claude.settings.custom_model,'claude-test');assert.equal(claude.settings.custom_api_format,'claude_messages');
  assert.deepEqual(errors,[]);
  console.log('PASS browser: persistent preset/world/API selection, dirty/saved state, automatic source refresh, isolated preview, immediate user floor, two-turn latest input binding, streaming cancellation, CSS isolation and mobile bounds; no page errors.');
 }finally{releaseStream?.();await browser?.close();server.close();}

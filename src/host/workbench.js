@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5-dev.1';
-import { createApiSchemes } from './api-schemes.js?v=0.5.5-dev.1';
-import { captureSources } from './sources.js?v=0.5.5-dev.1';
-import { migrateSettings } from '../planning/core.js?v=0.5.5-dev.1';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5-dev.1';
-import { resolvePreset } from '../planning/presets.js?v=0.5.5-dev.1';
-import { adapters } from '../planning/compatibility.js?v=0.5.5-dev.1';
-import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5-dev.1';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.5-dev.1';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.5-dev.1';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.5-dev.1';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5-dev.1';
-import { createCredentialStore } from './credential-store.js?v=0.5.5-dev.1';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5-dev.1';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5-dev.2';
+import { createApiSchemes } from './api-schemes.js?v=0.5.5-dev.2';
+import { captureSources } from './sources.js?v=0.5.5-dev.2';
+import { migrateSettings } from '../planning/core.js?v=0.5.5-dev.2';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5-dev.2';
+import { resolvePreset } from '../planning/presets.js?v=0.5.5-dev.2';
+import { adapters } from '../planning/compatibility.js?v=0.5.5-dev.2';
+import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5-dev.2';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.5-dev.2';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.5-dev.2';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.5-dev.2';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5-dev.2';
+import { createCredentialStore } from './credential-store.js?v=0.5.5-dev.2';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5-dev.2';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -35,7 +35,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
         const response = await fetch('/api/secrets/read', { method: 'POST', headers: headers(), body: '{}' });
         if (!response.ok) throw new Error('无法读取密钥引用。');
         const secretId = (await response.json()).api_key_custom?.find(x => x.active)?.id;
-        return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url }, additional:Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,c[k]||''])), secretId };
+        return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url, ...(c.custom_api_format ? {custom_api_format:c.custom_api_format} : {}) }, additional:Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,c[k]||''])), secretId };
     }
     const api = createApiSchemes({ read, write, external, current, currentAdditional:()=>Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,context().chatCompletionSettings?.[k]||''])), vault, models: async config => {
         let request = profileRequest({ ...config, model: config.model || 'models' }, [], 1, parseYaml);
@@ -88,7 +88,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
             } else if (method === 'api.save') {
                 let base = {};
                 if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);
-                const config = { ...base, source: 'custom', model: payload.model || base.model || '', connection: { custom_url: payload.apiUrl || base.connection?.custom_url || '' } };
+                const config = { ...base, source: 'custom', model: payload.model || base.model || '', connection: { ...base.connection, custom_url: payload.apiUrl || base.connection?.custom_url || '' } };
                 if(payload.additional!==undefined)config.additional=payload.additional;
                 profileRequest({...config,keyRef:config.keyRef||'validate'},[],state.maxTokens,parseYaml);
                 const url = new URL(config.connection.custom_url);
