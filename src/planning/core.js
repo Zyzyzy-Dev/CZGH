@@ -202,9 +202,12 @@ export function writingMessages(messages, plan, settings) {
 }
 
 export function eligibleRequest(data) {
-    return [undefined, 'normal', 'regenerate', 'swipe'].includes(data?.type)
-        && Array.isArray(data?.messages) && data.messages.length > 0
-        && !data.messages.some(m => m.role === 'tool' || m.tool_calls?.length);
+    if (![undefined, 'normal', 'regenerate', 'swipe'].includes(data?.type) || !Array.isArray(data?.messages) || !data.messages.length) return false;
+    const lastTool = data.messages.findLastIndex(m => m.role === 'tool' || m.tool_calls?.length);
+    if (lastTool < 0) return true;
+    // Explicit retries are new turns; recursive tool execution uses normal.
+    if (['regenerate','swipe'].includes(data.type)) return true;
+    return data.messages.findLastIndex(m => m.role === 'user') > lastTool;
 }
 
 export function unresolvedBaiBaiMacros(messages) {

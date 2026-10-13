@@ -1,6 +1,6 @@
 # TauriTavern 兼容核查
 
-核查日期：2026-10-13。插件测试版：0.5.5-dev.2。
+核查日期：2026-10-13。插件测试版：0.5.5-dev.3。
 
 核查上游固定提交：[f6126b4](https://github.com/Darkatse/TauriTavern/tree/f6126b4fc9243eb3990f2c0bad86e2afcb502f22)。以下是该提交的源码结论，不代表所有 TT 分支、安装版本或设备已实测。没有调用真实模型 API，也没有运行完整 TT 应用。
 
@@ -22,21 +22,27 @@ TT 的 Claude 流式路径会转发 Anthropic 事件；原来的插件只提取 
 
 依据：[Claude 请求与流处理](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src-tauri/crates/tt-adapter-provider-http/src/http_chat_completion_repository/claude.rs)、[Responses 转换](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src-tauri/crates/tt-adapter-provider-http/src/http_chat_completion_repository/openai_responses.rs)、[前端 SSE 转发](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src/tauri/main/routes/ai-routes.js)。
 
-## 确认还需适配
+## dev.3 补充适配
 
-### 优先：插件手填 Key 的独立方案
+### 插件手填 Key 的独立方案
 
-插件目前用本地凭据库存 Key，通过 custom_include_headers 发送认证，并用 `czgh-local:<id>` 阻止宿主回退到当前密钥。TT 的 config.rs 即使存在 Authorization 附加头，也会严格读取显式 secret_id；本地编号并不存在于 TT 的密钥库中，因此请求可能直接报 Secret id not found。
+插件原先用本地凭据库存 Key，通过 custom_include_headers 发送认证，并用 `czgh-local:<id>` 阻止宿主回退到当前密钥。TT 的 config.rs 即使存在 Authorization 附加头，也会严格读取显式 secret_id；本地编号并不存在于 TT 的密钥库中，因此请求可能直接报 Secret id not found。
 
-上游测试 `custom_additional_authorization_does_not_hide_missing_secret_id` 明确验证这一行为。复制 TT 已保存连接并沿用真实密钥编号的方案不属于此问题。后续修复必须保证规划不会误用当前活动密钥，也不能把临时认证内容写入普通配置、日志或正文。本次未修改认证传输，不以移除 secret_id 作为修复。
+上游测试 `custom_additional_authorization_does_not_hide_missing_secret_id` 明确验证这一行为。dev.3 通过官方宿主标记 `window.__TAURITAVERN__` 识别 TT：本地 Key 请求将 URL 放进 reverse_proxy、Key 放进 proxy_password，custom_url 留空且移除本地 secret_id，使用 config.rs 明确支持的单次认证分支；此分支不查询活动密钥。不是添加第三方代理，目标地址仍是用户填写的地址。模型列表请求使用同样路径，各协议由 TT 选择认证头。其他 ST 环境保留原有路径；复制 TT 已有连接的真实 secretId 路径不变。
+
+密钥仍只保存在原有本地凭据库，临时请求的认证字段不进入消息、普通设置或插件上下文预览。没有调用 TT 的密钥写入接口。TT 自身若禁用 endpoint_overrides（例如某些 iOS 构建策略），仍可能拒绝自定义地址/认证；本插件不绕过宿主策略。
 
 依据：[TT 认证配置及对应测试](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src-tauri/crates/tt-application/src/services/chat_completion_service/config.rs)。插件对应 profiles.js 的 profileRequest/authorizeLocalRequest。
 
 ### 工具历史与连续工具调用
 
-TT 把工具调用 assistant 和 role=tool 结果保存在真实 chat 楼层中，最终可见回答可能位于若干工具楼层之后。插件 eligibleRequest 当前只要看到请求历史里有 tool/tool_calls 就跳过，无法区分旧历史和正在续跑的工具调用，所以后续普通轮次也可能不规划。来源采集还会过滤 is_system，不能直接当作完整工具历史投影。
+TT 把工具调用 assistant 和 role=tool 结果保存在真实 chat 楼层中，最终可见回答可能位于若干工具楼层之后。插件原先只要看到请求历史里有 tool/tool_calls 就跳过。dev.3 区分历史与当轮：旧工具记录之后出现新用户输入时允许新规划，显式 regenerate/swipe 同样允许；当前工具续跑不再次生成规划。
 
-同时 generation-binding 使用预期的下一楼层编号，并在新一轮 started 时清理暂存；连续工具调用会改变楼层数量和事件顺序。需要一起处理：旧工具历史的只读转换、当轮续跑不重复规划、最终正文归属、停止与重生成。仅放宽 eligibleRequest 或接受任意后续楼层会引入重复规划或错误绑定。本次保留现有保护，不声称此路径已兼容。
+历史调用的名称、参数和结果转为带说明的参考文本，不把工具定义、执行字段或内部推理发送给规划 API，也不修改原始聊天。来源中的系统工具结果被保留；一般系统楼层仍按原规则排除。
+
+TT 续跑只在同一聊天、原消息内容未改变、新增楼层构成调用与结果逐一匹配的完整工具链时保留规划；每次递归请求追加原来的规划交接消息。任意普通楼层、新用户输入、缺失/重复结果、停止、显式重试或切换聊天不能借此继续旧绑定。最终正文可在工具楼层之后，但不能跳过无关楼层。
+
+额外核对发现：有可见文字的工具中间回复也会发 MESSAGE_RECEIVED，且可能早于 tool_calls 字段保存。因此 TT 的绑定要等 GENERATION_ENDED 确认后再完成：兼容非流式“先收到消息、后结束”，以及流式“先结束、后收到消息”。没有给一般 ST 开启工具递归推断。
 
 依据：[聊天载荷中的工具记录与事件契约](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/docs/CurrentState/ChatPayload.md)、[工具实现](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src/scripts/tool-calling.js)、[主生成流程](https://github.com/Darkatse/TauriTavern/blob/f6126b4fc9243eb3990f2c0bad86e2afcb502f22/src/script.js)。
 
@@ -57,6 +63,6 @@ TT 把工具调用 assistant 和 role=tool 结果保存在真实 chat 楼层中�
 
 ## 验证范围
 
-- 单元测试覆盖复制格式的请求构建、未知/被覆盖格式、Claude 中文分块、thinking 隔离、结束后连接不关闭、截断、异常结束和提前中断。
-- Edge 模拟浏览器覆盖从当前 TT 连接复制并编辑方案，实际发出的格式、模型、密钥编号，以及 Claude SSE 完成后注入规划；宿主模型设置不变。
-- 保留并运行原有预设、世界书、手动续正文、流式取消、界面隔离与窄屏回归。模拟服务只验证前端契约，不模拟真实 TT 的认证库，不能用其通过证明手填 Key 已适配。
+- 单元测试覆盖复制格式、Claude 流式、TT 单次认证参数、多轮工具链匹配、停止/重试/切聊/消息修改失效、中间回复的事件顺序，以及历史工具文本投影。
+- Edge 模拟浏览器覆盖复制并编辑方案、手填 Key 请求和模型列表、连续两轮工具只生成一次规划、最终正文持久化、下一轮用户输入仍能规划、历史结果进入上下文，以及密钥不进入消息/设置/预览。
+- 保留原有预设、世界书、手动续正文、流式取消、界面隔离与窄屏回归。模拟服务与源码契约校验通过仍不等于完整 TT 应用和真实服务商认证实测通过。

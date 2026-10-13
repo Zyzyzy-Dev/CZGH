@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureSources } from '../src/host/sources.js';
 
+test('tool history is read as labelled reference text without executable calls or native reasoning',async()=>{
+    const ctx={chatId:'c',chat:[{is_user:true,mes:'查天气'},{mes:'正在查询',tool_calls:[{id:'t1',name:'weather',parameters:{city:'北京'}}],extra:{tool_reasoning_content:'内部思考'}},{role:'tool',tool_call_id:'t1',is_system:true,name:'weather',mes:'晴天'},{mes:'天气晴朗'},{is_system:true,mes:'不要读取的系统楼层'},{is_user:true,mes:'现在出门吗'}],chatMetadata:{}};
+    const before=structuredClone(ctx);
+    const host={context:()=>ctx,manager:{getPresetList:()=>({})},world:{loadWorldInfo:async()=>({entries:{}})},openai:{},powerUser:{}};
+    const snapshot=await captureSources(host);
+    assert.equal(snapshot.history.length,5);
+    assert.match(snapshot.history[1].content,/weather/);assert.match(snapshot.history[1].content,/北京/);
+    assert.match(snapshot.history[2].content,/历史工具结果/);assert.match(snapshot.history[2].content,/晴天/);
+    assert.equal(snapshot.history[2].role,'assistant');assert.equal(snapshot.userInput,'现在出门吗');
+    assert.ok(!snapshot.history.some(m=>m.tool_calls||m.role==='tool'));
+    assert.ok(!snapshot.history.map(m=>m.content).join('').includes('内部思考'));
+    assert.equal(snapshot.macroEnvironment.lastcharmessage,'天气晴朗');
+    assert.deepEqual(ctx,before);
+});
+
 test('database books are loaded through regular bindings and extra books only',async()=>{
     const reads=[];
     const ctx={chatId:'c',characterId:0,characters:[{data:{extensions:{world:'主书'}}}],chat:[],chatMetadata:{world_info:'聊天书'}};

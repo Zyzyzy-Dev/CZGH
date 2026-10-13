@@ -14,14 +14,20 @@ input,textarea,button{font-size:55px!important;color:rgb(255,0,0)!important;back
 </style></head><body><div id="extensions_menu"></div><input id="outside" value="host">
 <script>const listeners={};window.saved=0;window.context={extensionSettings:{preset_compare_api_manager:{version:1,profiles:[{id:'p1',name:'测试方案',source:'custom',model:'model',secretId:'s1',connection:{custom_url:'https://example.org/v1'}}]}},eventTypes:{APP_READY:'ready',CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat',GENERATION_ENDED:'ended',MESSAGE_RECEIVED:'received',CHARACTER_MESSAGE_RENDERED:'render',GENERATION_STARTED:'started',USER_MESSAGE_RENDERED:'user-render'},eventSource:{on:(n,f)=>(listeners[n]??=[]).push(f)},saveSettingsDebounced:()=>window.saved++};const preset={prompts:[{identifier:'main',name:'写作规则',role:'system',content:'规划使用 <Think> 标签'},{identifier:'chatHistory',name:'聊天历史',marker:true}],prompt_order:[{character_id:100001,order:[{identifier:'main',enabled:true},{identifier:'chatHistory',enabled:true}]}],extensions:{baibaiToolkit:{presetPromptGroups:{groups:[{id:'g',name:'写作要求',order:0}],prompts:{main:{groupId:'g'}}}}}};Object.assign(context,{chatId:'test',chat:[],chatMetadata:{},characters:[],name1:'玩家',name2:'角色',getPresetManager:()=>({getPresetList:()=>({presets:[preset],preset_names:{'测试预设':0}}),getSelectedPresetName:()=> '测试预设'}),chatCompletionSettings:{},powerUserSettings:{},saveChat:async()=>{window.chatSaved=(window.chatSaved||0)+1},saveMetadataDebounced:()=>{},getTokenCountAsync:async t=>t.length});const persisted=localStorage.getItem("test-settings");if(persisted)context.extensionSettings=JSON.parse(persisted);window.SillyTavern={getContext:()=>context};</script>
 <script type="module" src="/index.js"></script></body></html>`;
-let plannerRequest, releaseStream;
+let plannerRequest, releaseStream, plannerCalls=0, statusRequest;
 let streamGate, keepStreamOpen=false;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{window.sourceReads=(window.sourceReads||0)+1;if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:window.worldComment||'森林',content:window.worldContent||'森林里住着精灵。',disable:false},...Object.fromEntries(Array.from({length:window.worldEntryCount||0},(_,i)=>[i+2,{uid:i+2,constant:true,comment:'世界条目 '+i,content:'测试',disable:false}]))}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
+    if(req.url==='/api/backends/chat-completions/status'){
+        let raw='';for await(const chunk of req)raw+=chunk;statusRequest=JSON.parse(raw);
+        if(statusRequest.secret_id?.startsWith('czgh-local:')){res.writeHead(400).end('Secret id not found');return;}
+        res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:[{id:'claude-edited'}]}));return;
+    }
     if(req.url==='/api/backends/chat-completions/generate'){
-        let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);
+        let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);plannerCalls++;
+        if(plannerRequest.proxy_password&&plannerRequest.secret_id){res.writeHead(400).end('Secret id not found');return;}
         if(plannerRequest.stream&&plannerRequest.custom_api_format==='claude_messages'){
             res.setHeader('Content-Type','text/event-stream');
             for(const event of [
@@ -68,7 +74,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5-dev\.2$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5-dev\.3$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -428,6 +434,69 @@ try{
  assert.match(claude.data.messages.at(-1).content,/Claude 测试规划/);
  assert.ok(!JSON.stringify(claude.data.messages).includes('不可作为规划的内部思考'));
  assert.equal(claude.settings.custom_model,'claude-test');assert.equal(claude.settings.custom_api_format,'claude_messages');
+ // TT local credentials and real tool floors: one plan per user turn, carried
+ // through recursive requests and saved only on the final visible response.
+ await page.evaluate(()=>{window.__TAURITAVERN__={};});
+ await page.locator('#czgh-planner-menu').click();
+ await frame.getByLabel('Key',{exact:true}).fill('tt-local-test-key');
+ await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).click();
+ await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.find(x=>x.name==='Claude 复制测试')?.payload.keyRef);
+ await frame.getByRole('button',{name:'拉取模型',exact:true}).click();
+ await frame.locator('#model-list option').waitFor({state:'attached'});
+ assert.equal(statusRequest.reverse_proxy,'https://example.org/v1');assert.equal(statusRequest.custom_url,'');
+ assert.equal(statusRequest.proxy_password,'tt-local-test-key');assert.equal(statusRequest.secret_id,undefined);
+ await frame.getByRole('button',{name:'关闭',exact:true}).click();
+ const beforeToolCalls=plannerCalls;
+ const toolFlow=await page.evaluate(async()=>{
+     for(const fn of listeners.stop||[])await fn();
+     context.chat=[{is_user:true,mes:'查询历史地点'}];
+     const body=[{role:'user',content:'查询历史地点'}];
+     for(const fn of listeners.started||[])await fn('normal',{},false);
+     const initial={type:'normal',messages:structuredClone(body)};
+     for(const fn of listeners.request||[])await fn(initial);
+     const reused=[];
+     for(const id of ['lookup1','lookup2']){
+         const call={id,type:'function',function:{name:'lookup',arguments:'{}'}};
+         context.chat.push({mes:'查询中'});
+         for(const fn of listeners.received||[])await fn(context.chat.length-1,'normal');
+         context.chat.at(-1).tool_calls=[{id,name:'lookup',parameters:{}}];
+         context.chat.push({role:'tool',is_system:true,tool_call_id:id,name:'lookup',mes:'历史地点：河岸'});
+         body.push({role:'assistant',content:'查询中',tool_calls:[call]},{role:'tool',tool_call_id:id,content:'历史地点：河岸'});
+         for(const fn of listeners.started||[])await fn('normal',{},false);
+         const continuation={type:'normal',messages:structuredClone(body)};
+         for(const fn of listeners.request||[])await fn(continuation);
+         reused.push(continuation.messages.at(-1).content);
+     }
+     context.chat.push({mes:'最终正文',extra:{},swipe_id:0});
+     for(const fn of listeners.received||[])await fn(5,'normal');
+     for(const fn of listeners.ended||[])await fn();
+     return {initial:initial.messages.at(-1).content,reused,chat:context.chat,settings:context.extensionSettings};
+ });
+ assert.equal(plannerCalls,beforeToolCalls+1);
+ assert.equal(plannerRequest.reverse_proxy,'https://example.org/v1');assert.equal(plannerRequest.custom_url,'');
+ assert.equal(plannerRequest.proxy_password,'tt-local-test-key');assert.equal(plannerRequest.secret_id,undefined);
+ assert.deepEqual(toolFlow.reused,[toolFlow.initial,toolFlow.initial]);
+ assert.equal(toolFlow.chat[5].extra.czghCreativePlanning[0].text,'Claude 测试规划');
+ assert.ok(toolFlow.chat.slice(1,5).every(m=>!m.extra?.czghCreativePlanning));
+ assert.ok(!JSON.stringify(toolFlow.settings).includes('tt-local-test-key'));
+ assert.ok(!JSON.stringify(toolFlow.chat).includes('tt-local-test-key'));
+ const afterTools=await page.evaluate(async()=>{
+     context.chat.push({is_user:true,mes:'然后往前走'});
+     for(const fn of listeners.started||[])await fn('normal',{},false);
+     const data={type:'normal',messages:[{role:'assistant',tool_calls:[{id:'old'}]},{role:'tool',tool_call_id:'old',content:'历史结果'},{role:'assistant',content:'上轮正文'},{role:'user',content:'然后往前走'}]};
+     for(const fn of listeners.request||[])await fn(data);
+     return data;
+ });
+ assert.equal(plannerCalls,beforeToolCalls+2);assert.match(afterTools.messages.at(-1).content,/Claude 测试规划/);
+ assert.match(JSON.stringify(plannerRequest.messages),/历史工具结果/);
+ assert.match(JSON.stringify(plannerRequest.messages),/历史地点：河岸/);
+ assert.ok(plannerRequest.messages.every(m=>m.role!=='tool'&&!m.tool_calls));
+ await page.locator('#czgh-planner-menu').click();
+ await frame.getByRole('button',{name:'规划预览',exact:true}).click();
+ await frame.getByRole('button',{name:'发送上下文',exact:true}).click();
+ assert.ok(!(await frame.locator('#request-view').textContent()).includes('tt-local-test-key'));
+ assert.ok(!(await page.evaluate(()=>localStorage.getItem('test-settings'))).includes('tt-local-test-key'));
  assert.deepEqual(errors,[]);
  console.log('PASS browser: persistent preset/world/API selection, dirty/saved state, automatic source refresh, isolated preview, immediate user floor, two-turn latest input binding, streaming cancellation, CSS isolation and mobile bounds; no page errors.');
 }finally{releaseStream?.();await browser?.close();server.close();}

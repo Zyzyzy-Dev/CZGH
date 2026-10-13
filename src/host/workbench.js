@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5-dev.2';
-import { createApiSchemes } from './api-schemes.js?v=0.5.5-dev.2';
-import { captureSources } from './sources.js?v=0.5.5-dev.2';
-import { migrateSettings } from '../planning/core.js?v=0.5.5-dev.2';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5-dev.2';
-import { resolvePreset } from '../planning/presets.js?v=0.5.5-dev.2';
-import { adapters } from '../planning/compatibility.js?v=0.5.5-dev.2';
-import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5-dev.2';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.5-dev.2';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.5-dev.2';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.5-dev.2';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5-dev.2';
-import { createCredentialStore } from './credential-store.js?v=0.5.5-dev.2';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5-dev.2';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5-dev.3';
+import { createApiSchemes } from './api-schemes.js?v=0.5.5-dev.3';
+import { captureSources } from './sources.js?v=0.5.5-dev.3';
+import { migrateSettings } from '../planning/core.js?v=0.5.5-dev.3';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5-dev.3';
+import { resolvePreset } from '../planning/presets.js?v=0.5.5-dev.3';
+import { adapters } from '../planning/compatibility.js?v=0.5.5-dev.3';
+import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5-dev.3';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.5-dev.3';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.5-dev.3';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.5-dev.3';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5-dev.3';
+import { createCredentialStore } from './credential-store.js?v=0.5.5-dev.3';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5-dev.3';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -39,7 +39,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
     }
     const api = createApiSchemes({ read, write, external, current, currentAdditional:()=>Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,context().chatCompletionSettings?.[k]||''])), vault, models: async config => {
         let request = profileRequest({ ...config, model: config.model || 'models' }, [], 1, parseYaml);
-        if (config.keyRef) request = authorizeLocalRequest(request, await vault.get(config.keyRef), parseYaml);
+        if (config.keyRef) request = authorizeLocalRequest(request, await vault.get(config.keyRef), parseYaml, {tauriTavern:!!globalThis.__TAURITAVERN__});
         const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify(request) });
         if (!response.ok) throw new Error('模型拉取失败，可手动输入模型名称。');
         const data = await response.json();
@@ -155,8 +155,8 @@ export function createWorkbench({ context, headers, saveSettings }) {
             }
             const profile = await api.resolve(state.apiSelection);
             if (profile.keyRef) {
-                const request = authorizeLocalRequest(profileRequest(profile, [], config.maxTokens, parseYaml), await vault.get(profile.keyRef), parseYaml);
-                return { ...built, request };
+                const request = authorizeLocalRequest(profileRequest(profile, [], config.maxTokens, parseYaml), await vault.get(profile.keyRef), parseYaml, {tauriTavern:!!globalThis.__TAURITAVERN__});
+                return { ...built, request, apiUrl:profile.connection.custom_url };
             }
             if (!profile.secretId) throw new Error('此方案尚无可用密钥引用，请选择已保存的 API 方案。');
             return { ...built, profile };

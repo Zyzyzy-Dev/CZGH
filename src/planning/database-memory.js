@@ -1,5 +1,5 @@
 /* 数据库 1.2.9 世界书导出识别：沿用独立扫描，不读取原始全表或触发数据库更新。 */
-import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.5-dev.2';
+import { recallTags, databaseRecallQuery, selectDatabaseMemos } from './database-recall.js?v=0.5.5-dev.3';
 const generatedName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?TavernDB-ACU-(?:ReadableDataTable|OutlineTable|ImportantPersonsIndex|PersonsHeader|CustomExport(?:-.+)?|WrapperStart|WrapperEnd|MemoryStart|MemoryEnd)$/;
 const rowName=/^(ACU-\[[^\r\n]*?\]-)?(外部导入-)?(?:重要人物条目|小总结条目|总结条目)\d+$/;
 const unresolvedTemplate=/\{\[\s*(?:db\.|sql\b)|<if\s+(?:seed|cell|cond|db|sql)\s*=|<(?:calc|max|min|random)(?:\s|>)|\$v:/i;

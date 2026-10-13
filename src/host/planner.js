@@ -1,10 +1,10 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.5-dev.2';
-import { createId } from '../bridge/id.js?v=0.5.5-dev.2';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.5-dev.2';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.5-dev.2';
-import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.5-dev.2';
-export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
+import { readPlanResponse } from './stream.js?v=0.5.5-dev.3';
+import { createId } from '../bridge/id.js?v=0.5.5-dev.3';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.5-dev.3';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.5-dev.3';
+import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.5-dev.3';
+export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, continueRequest = () => false, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
 const ctx = getContext;
@@ -77,7 +77,9 @@ async function requestPlan(messages, config, key, signal, progress, requestReady
 }
 
 async function onRequest(data) {
-    if (!settings().enabled || !eligibleRequest(data) || processed.has(data)) return;
+    if (!settings().enabled || processed.has(data)) return;
+    if (continueRequest(data)) { processed.add(data); return; }
+    if (!eligibleRequest(data)) return;
     processed.add(data);
     if (skipOnce) { skipOnce = false; status('本次已跳过外置规划，使用原始预设。'); return; }
     if (pending) {
@@ -138,7 +140,7 @@ async function onRequest(data) {
         }
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
-        onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState });
+        onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState }, data.messages.at(-1));
         previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
         status(`规划已注入（${plan.length} 字符），正在生成正文。正文请求流式：${data.stream === true ? '开启' : data.stream === false ? '关闭' : '未提供'}。`);
     } catch (error) {

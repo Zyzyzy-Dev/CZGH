@@ -78,6 +78,14 @@ test('quiet, impersonation, continuation and tool rounds never invoke planner', 
     for (const type of [undefined, 'normal', 'regenerate', 'swipe']) assert.equal(eligibleRequest({ type, messages }), true);
     assert.equal(eligibleRequest({ messages: [{ role: 'tool', content: 'x' }] }), false);
 });
+test('completed tool history before a new user does not suppress planning, but an active tool round does',()=>{
+    const history=[{role:'user',content:'旧问题'},{role:'assistant',tool_calls:[{id:'t1'}]},{role:'tool',tool_call_id:'t1',content:'结果'}];
+    assert.equal(eligibleRequest({type:'normal',messages:[...history,{role:'user',content:'新问题'}]}),true);
+    assert.equal(eligibleRequest({type:'normal',messages:history}),false);
+    assert.equal(eligibleRequest({type:'normal',messages:[...history,{role:'system',content:'尾部注入'}]}),false);
+    for(const type of ['regenerate','swipe'])assert.equal(eligibleRequest({type,messages:history}),true);
+});
+
 test('detect unresolved BaiBai macros including parameterized form', () => {
     for (const content of ['{{bbsVars}}', '{{bbsSnapshot::42::after}}']) assert.equal(unresolvedBaiBaiMacros([{ content }]), true);
     assert.equal(unresolvedBaiBaiMacros([{ content: '柏宝书记忆已展开' }]), false);

@@ -1,6 +1,7 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.5.5-dev.2';
-import { captureAuthorNote } from '../planning/author-note.js?v=0.5.5-dev.2';
+import { createId } from '../bridge/id.js?v=0.5.5-dev.3';
+import { projectHistory } from '../planning/tool-history.js?v=0.5.5-dev.3';
+import { captureAuthorNote } from '../planning/author-note.js?v=0.5.5-dev.3';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;
@@ -35,13 +36,13 @@ export async function captureSources(host, { signal, extraBooks = [], generation
         if (!data?.entries) throw new Error(`无法读取世界书「${name}」。`);
         Object.defineProperty(books, name, { value: structuredClone(data), enumerable: true });
     }
-    const history = (context.chat || []).filter(m => !m.is_system).map(m => ({ role: m.is_user ? 'user' : 'assistant', content: structuredClone(m.content ?? m.mes ?? ''), name: m.name, extra: structuredClone(m.extra || {}) }));
+    const history = projectHistory(context.chat || []);
     // ST retains the replaced floor for swipe, but has already removed it for regenerate.
-    if (generationType === 'swipe' && history.at(-1)?.role === 'assistant') history.pop();
+    if (generationType === 'swipe' && history.at(-1)?.role === 'assistant' && !history.at(-1).toolReference) history.pop();
     const databaseRecent=(generationType==='swipe'?context.chat.slice(0,-1):context.chat||[]).filter(m=>m&&!m.is_user&&!m.is_system&&!m.is_hidden&&!m.extra?.is_hidden&&String(m.role||'').toLowerCase()!=='system'&&String(m.mes||'').trim()).slice(-6).map(m=>String(m.mes));
     const injections = Object.fromEntries(Object.entries(context.extensionPrompts || {}).map(([key,p]) => [key,{value:String(p.value || ''),position:p.position,depth:p.depth,role:p.role,scan:!!p.scan,hasFilter:typeof p.filter==='function'}]));
     const snapshot = { id: createId(), chatId, character, history, userInput: history.at(-1)?.role === 'user' ? history.at(-1).content : '', presets: presetMap, currentPreset, books, bookNames: [...(world.world_names || [])], bindings, injections, databaseRecent,
-        macroEnvironment: { user: context.name1 || '', char: context.name2 || character.name || '', description: character.description || character.data?.description || '', personality: character.personality || character.data?.personality || '', scenario: character.scenario || character.data?.scenario || '', persona: host.powerUser?.persona_description || '', original: '', lastusermessage: history.findLast(m => m.role === 'user')?.content || '', lastcharmessage: history.findLast(m => m.role === 'assistant')?.content || '', lastmessage: history.at(-1)?.content || '', lastmessageid: history.length - 1 },
+        macroEnvironment: { user: context.name1 || '', char: context.name2 || character.name || '', description: character.description || character.data?.description || '', personality: character.personality || character.data?.personality || '', scenario: character.scenario || character.data?.scenario || '', persona: host.powerUser?.persona_description || '', original: '', lastusermessage: history.findLast(m => m.role === 'user')?.content || '', lastcharmessage: history.findLast(m => m.role === 'assistant' && !m.toolReference)?.content || '', lastmessage: history.at(-1)?.content || '', lastmessageid: history.length - 1 },
         authorNote: captureAuthorNote(context, character),
         variables: { local: structuredClone(context.chatMetadata?.variables || {}), global: structuredClone(context.extensionSettings?.variables?.global || {}) },
         worldSettings: structuredClone(world.getWorldInfoSettings?.() || {}), maxContext: Number(context.chatCompletionSettings?.openai_max_context) || context.maxContext || 8192,

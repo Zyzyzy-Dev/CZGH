@@ -44,8 +44,15 @@ export function profileRequest(profile, messages, maxTokens, parseYaml) {
     return body;
 }
 
-export function authorizeLocalRequest(body, key, parseYaml) {
+export function authorizeLocalRequest(body, key, parseYaml, { tauriTavern = false } = {}) {
     if (typeof key !== 'string' || !key.trim() || /[\r\n]/.test(key)) throw new Error('本地密钥不可用。');
+    if (tauriTavern) {
+        // TT explicitly supports Custom + reverse_proxy/proxy_password. Leaving
+        // custom_url empty selects this branch and bypasses its secret store.
+        const request = { ...body, custom_url:'', reverse_proxy:body.custom_url, proxy_password:key.trim() };
+        delete request.secret_id;
+        return request;
+    }
     const headers = body.custom_include_headers ? parseYaml(body.custom_include_headers) : {};
     return { ...body, custom_include_headers: JSON.stringify({ ...headers, Authorization: `Bearer ${key.trim()}` }) };
 }
