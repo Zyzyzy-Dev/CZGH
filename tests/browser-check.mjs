@@ -33,6 +33,14 @@ try{
  const page=await browser.newPage({viewport:{width:1100,height:900}});
  await page.addInitScript(()=>Object.defineProperty(Crypto.prototype,'randomUUID',{value:undefined,configurable:true}));
  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});
+ await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{
+     if(!window.context?.getPresetManager)return;
+     const preset=window.context.getPresetManager().getPresetList().presets[0];
+     for(const identifier of ['agentSystemPrompt','agentTask','agentResults']){
+         preset.prompts.push({identifier,name:identifier,marker:true,content:'Agent 专用内容'});
+         preset.prompt_order[0].order.push({identifier,enabled:true});
+     }
+ }));
  await page.goto(`http://127.0.0.1:${server.address().port}`);
  await page.locator('#czgh-planner-menu').click();
  const frame=page.frameLocator('iframe[title="创作规划"]');
@@ -41,7 +49,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.4$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5-dev\.1$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -291,6 +299,8 @@ try{
  assert.equal(generated.record.text,'本轮测试规划');assert.ok(generated.saved>0);
  assert.ok(!JSON.stringify(plannerRequest.messages).includes('只属于正文的系统指令'));
  assert.ok(JSON.stringify(plannerRequest.messages).includes('真实用户输入'));
+ assert.ok(!JSON.stringify(plannerRequest.messages).includes('Agent 专用内容'));
+ assert.equal(await page.evaluate(()=>context.getPresetManager().getPresetList().presets[0].prompt_order[0].order.filter(p=>['agentSystemPrompt','agentTask','agentResults'].includes(p.identifier)&&p.enabled).length),3);
  assert.equal(await page.locator('.mes[mesid="0"] iframe[title="本楼创作规划"]').count(),1);
  assert.equal(await floor.locator('details').evaluate(el=>el.open),true);
  assert.match(await floor.locator('pre').textContent(),/本轮测试规划/);

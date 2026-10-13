@@ -1,4 +1,7 @@
 /* 预设副本视图：按 prompt_order 执行，柏宝箱分组仅控制显示和私有组开关。 */
+// TauriTavern excludes these markers from ordinary chat assembly. This
+// planner handles the ordinary chat path, not its separate Agent runtime.
+const agentOnlyMarkers = new Set(['agentSystemPrompt', 'agentTask', 'agentResults']);
 export function resolvePreset(snapshot, selection = {}) {
     const id = selection.presetId || snapshot.currentPreset;
     const preset = snapshot.presets[id];
@@ -26,7 +29,7 @@ export function resolvePreset(snapshot, selection = {}) {
             displayedGroups.add(group.id);
             display.push({ type: 'group', group });
         }
-        if (entry.enabled && group.enabled) execution.push(entry);
+        if (entry.enabled && group.enabled && !(entry.marker && agentOnlyMarkers.has(entry.identifier))) execution.push(entry);
     }
     for (const key of Object.keys(selection.promptOverrides || {})) if (!entries.has(key)) diagnostics.push({code:'missing-entry',message:`旧方案条目 ${key} 已删除，不再套用开关。`});
     if (ungrouped.entries.length) groups.push(ungrouped);

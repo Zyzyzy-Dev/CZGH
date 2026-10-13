@@ -1,7 +1,7 @@
 {
   "name": "czgh-creative-planning",
   "description": "创作规划：为酒馆独立生成并注入写作规划",
-  "version": "0.5.4",
+  "version": "0.5.5-dev.1",
   "private": true,
   "type": "module",
   "scripts": {
