@@ -1,8 +1,8 @@
 /* 世界书私有扫描入口：合并挂载来源、本地开关、原生扫描器和独立计时状态。 */
-import { createNativeScanner } from './native-world-scan.js?v=0.5.5-dev.3';
-import { expandMacros } from './macros.js?v=0.5.5-dev.3';
-import { selectInjections } from './compatibility.js?v=0.5.5-dev.3';
-import { validateDatabaseMemories } from './database-memory.js?v=0.5.5-dev.3';
+import { createNativeScanner } from './native-world-scan.js?v=0.5.5';
+import { expandMacros } from './macros.js?v=0.5.5';
+import { selectInjections } from './compatibility.js?v=0.5.5';
+import { validateDatabaseMemories } from './database-memory.js?v=0.5.5';
 export const entryKey = (book, uid) => JSON.stringify([book, uid]);
 export async function scanWorldInfo({ snapshot, selection = {}, previousState = {}, tokenize, random = Math.random, serializeYaml }) {
     const diagnostics = [], nextState = structuredClone(previousState);

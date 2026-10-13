@@ -1,18 +1,18 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5-dev.3';
-import { createApiSchemes } from './api-schemes.js?v=0.5.5-dev.3';
-import { captureSources } from './sources.js?v=0.5.5-dev.3';
-import { migrateSettings } from '../planning/core.js?v=0.5.5-dev.3';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5-dev.3';
-import { resolvePreset } from '../planning/presets.js?v=0.5.5-dev.3';
-import { adapters } from '../planning/compatibility.js?v=0.5.5-dev.3';
-import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5-dev.3';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.5-dev.3';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.5-dev.3';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.5-dev.3';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5-dev.3';
-import { createCredentialStore } from './credential-store.js?v=0.5.5-dev.3';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5-dev.3';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.5';
+import { createApiSchemes } from './api-schemes.js?v=0.5.5';
+import { captureSources } from './sources.js?v=0.5.5';
+import { migrateSettings } from '../planning/core.js?v=0.5.5';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.5';
+import { resolvePreset } from '../planning/presets.js?v=0.5.5';
+import { adapters } from '../planning/compatibility.js?v=0.5.5';
+import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.5';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.5';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.5';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.5';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.5';
+import { createCredentialStore } from './credential-store.js?v=0.5.5';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.5';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
