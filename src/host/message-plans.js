@@ -21,6 +21,8 @@ export function createMessagePlans(host) {
             const record=message.extra?.czghCreativePlanning?.[swipeId];
             if(record&&latestUser>=0){records.set(latestUser,{...record,messageId:latestUser,sourceMessageId:messageId,swipeId,stale:record.bodyFingerprint!==fingerprint(message.mes)});break;}
         }
+        const completed=host.completed?.();
+        if(host.display()&&completed&&latestUser>=0)records.set(latestUser,{...completed,messageId:latestUser});
         if (host.display()) for (const record of pending.values()) {
             const anchor = userBefore(Math.min(record.expectedMessageId ?? host.messages().length, host.messages().length) - 1);
             if (record.chatId === host.chatId() && anchor >= 0 && anchor === latestUser) records.set(anchor, { ...record, messageId: anchor, stale: false });
@@ -29,7 +31,7 @@ export function createMessagePlans(host) {
             const anchor = userBefore(Math.min(live.expectedMessageId, host.messages().length) - 1);
             if (anchor >= 0 && anchor === latestUser) records.set(anchor, { ...live, messageId: anchor });
         }
-        host.render([...records.values()]);
+        host.render([...records.values()].map(record=>({...record,canResume:record.phase==='awaiting'||!!host.canResume?.(record)})));
     }
     return {
         updateLive(record) { if (record.chatId !== host.chatId()) return; live = structuredClone(record); render(); },
@@ -39,7 +41,7 @@ export function createMessagePlans(host) {
         async bind({ requestId, messageId, swipeId }) {
             const record = pending.get(requestId); pending.delete(requestId);
             const message = host.messages()[messageId];
-            if (!record || record.chatId !== host.chatId() || !message || message.is_user || message.is_system || !message.mes) return;
+            if (!record || record.chatId !== host.chatId() || !message || message.is_user || message.is_system || !message.mes) return false;
             record.swipeId = swipeId;
             record.bodyFingerprint = fingerprint(message.mes);
             delete record.nextWorldState;
@@ -50,7 +52,7 @@ export function createMessagePlans(host) {
                 message.swipe_info[swipeId].extra ??= {};
                 message.swipe_info[swipeId].extra.czghCreativePlanning = structuredClone(message.extra.czghCreativePlanning);
             }
-            await host.save(); render();
+            await host.save(); render();return true;
         },
         render,
         discard(requestId) { if (requestId) pending.delete(requestId); else pending.clear(); render(); },

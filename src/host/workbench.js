@@ -1,18 +1,19 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.6';
-import { createApiSchemes } from './api-schemes.js?v=0.5.6';
-import { captureSources } from './sources.js?v=0.5.6';
-import { migrateSettings } from '../planning/core.js?v=0.5.6';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.6';
-import { resolvePreset } from '../planning/presets.js?v=0.5.6';
-import { adapters } from '../planning/compatibility.js?v=0.5.6';
-import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.6';
-import { buildPlanningContext } from '../planning/context.js?v=0.5.6';
-import { cleanSettings } from '../bridge/protocol.js?v=0.5.6';
-import { materializePluginMacros } from './plugin-macros.js?v=0.5.6';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.6';
-import { createCredentialStore } from './credential-store.js?v=0.5.6';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.6';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.5.7-dev.1';
+import { createApiSchemes } from './api-schemes.js?v=0.5.7-dev.1';
+import { captureSources } from './sources.js?v=0.5.7-dev.1';
+import { migrateSettings } from '../planning/core.js?v=0.5.7-dev.1';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.5.7-dev.1';
+import { resolvePreset } from '../planning/presets.js?v=0.5.7-dev.1';
+import { adapters } from '../planning/compatibility.js?v=0.5.7-dev.1';
+import { databaseMemoryMode } from '../planning/database-memory.js?v=0.5.7-dev.1';
+import { buildPlanningContext } from '../planning/context.js?v=0.5.7-dev.1';
+import { cleanSettings } from '../bridge/protocol.js?v=0.5.7-dev.1';
+import { materializePluginMacros } from './plugin-macros.js?v=0.5.7-dev.1';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.5.7-dev.1';
+import { createCredentialStore } from './credential-store.js?v=0.5.7-dev.1';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.7-dev.1';
+import { fetchModelList, withModelListTimeout } from './model-list.js?v=0.5.7-dev.1';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -29,23 +30,19 @@ export function createWorkbench({ context, headers, saveSettings }) {
         if (store && (store.version !== 1 || !Array.isArray(store.profiles))) throw new Error('外部 API 方案格式不受支持。');
         return store?.profiles || [];
     };
-    async function current() {
+    async function current({ signal } = {}) {
         const c = context().chatCompletionSettings;
         if (!c || c.chat_completion_source !== 'custom') throw new Error('当前连接无法复制为兼容 API 方案，请使用预设编辑器方案或手动填写。');
-        const response = await fetch('/api/secrets/read', { method: 'POST', headers: headers(), body: '{}' });
+        const response = await fetch('/api/secrets/read', { method: 'POST', headers: headers(), body: '{}', signal });
         if (!response.ok) throw new Error('无法读取密钥引用。');
         const secretId = (await response.json()).api_key_custom?.find(x => x.active)?.id;
         return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url, ...(c.custom_api_format ? {custom_api_format:c.custom_api_format} : {}) }, additional:Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,c[k]||''])), secretId };
     }
-    const api = createApiSchemes({ read, write, external, current, currentAdditional:()=>Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,context().chatCompletionSettings?.[k]||''])), vault, models: async config => {
-        let request = profileRequest({ ...config, model: config.model || 'models' }, [], 1, parseYaml);
-        if (config.keyRef) request = authorizeLocalRequest(request, await vault.get(config.keyRef), parseYaml, {tauriTavern:!!globalThis.__TAURITAVERN__});
-        const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify(request) });
-        if (!response.ok) throw new Error('模型拉取失败，可手动输入模型名称。');
-        const data = await response.json();
-        if (!Array.isArray(data.data)) throw new Error('API 没有返回模型列表，可手动输入。');
-        return data.data.map(x => x.id).filter(x => typeof x === 'string');
-    } });
+    const api = createApiSchemes({ read, write, external, current,
+        currentSummary:()=>({model:context().chatCompletionSettings?.custom_model,connection:{custom_url:context().chatCompletionSettings?.custom_url}}),
+        currentAdditional:()=>Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,context().chatCompletionSettings?.[k]||''])),
+        vault, models:(config, options) => fetchModelList(config, { headers, vault, parseYaml, tauriTavern:!!globalThis.__TAURITAVERN__, ...options }),
+    });
     async function capture(signal, extraBooks, generationType, selection = {}) {
         const world = await import('/scripts/world-info.js');
         const c = context();
@@ -95,7 +92,13 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写有效的 HTTP(S) 基础地址。');
                 await api.save({ id: payload.id, name: payload.name, config, key: payload.key });
             } else if (method === 'api.remove') await api.remove(payload.id);
-            else if (method === 'api.models') return api.models(await api.resolve(state.apiSelection));
+            else if (method === 'api.models') return withModelListTimeout(async signal => {
+                const selected = payload.sourceId || state.apiSelection;
+                const base = selected === 'current' && payload.key && payload.apiUrl ? {} : await api.resolve(selected, { signal });
+                const config = { ...base, source:'custom', model:payload.model ?? base.model ?? '', connection:{...base.connection,custom_url:payload.apiUrl ?? base.connection?.custom_url ?? ''} };
+                if (payload.additional !== undefined) config.additional = payload.additional;
+                return api.models(config, { key:payload.key, signal });
+            });
             else if (method === 'scheme.loadCurrent') {
                 if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
                 const fresh = await capture(undefined, [], undefined, state.selection);

@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.6';
-import { entryKey } from '../planning/world-info.js?v=0.5.6';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.6';
-import { promptDefaults } from '../planning/core.js?v=0.5.6';
-import { editAdditional } from './additional-editor.js?v=0.5.6';
-import { editPrompt } from './prompt-editor.js?v=0.5.6';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.6';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.7-dev.1';
+import { entryKey } from '../planning/world-info.js?v=0.5.7-dev.1';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.7-dev.1';
+import { promptDefaults } from '../planning/core.js?v=0.5.7-dev.1';
+import { editAdditional } from './additional-editor.js?v=0.5.7-dev.1';
+import { editPrompt } from './prompt-editor.js?v=0.5.7-dev.1';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.7-dev.1';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -64,15 +64,40 @@ function buildView(root, state, ui, act, liveRoot) {
         const profile=state.profiles.find(p=>p.id===s.apiSelection);
         const apiOptions=profile?state.profiles:[{id:s.apiSelection||'',name:'原方案不可用，请重新选择',origin:'missing'},...state.profiles];
         const draft=ui.apiDraft;
-        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',apiOptions.map(p=>({...p,name:`${p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};await act('settings.update',{apiSelection:value});}));
+        const resetModels=()=>{ui.models=[];ui.modelRequest=null;ui.modelFeedback=null;};
+        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',apiOptions.map(p=>({...p,name:`${p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};resetModels();await act('settings.update',{apiSelection:value});}));
         const save=async overwrite=>{const name=await ask(overwrite?'覆盖 API 方案':'新建 API 方案',overwrite?profile?.name:'');if(name)await act('api.save',{id:overwrite?s.apiSelection:undefined,sourceId:s.apiSelection,name,apiUrl:draft.apiUrl,model:draft.model,key:draft.key,additional:draft.additional});};
         bar.append(button('新建 API 方案',()=>save(false),'+'));
         const over=button('覆盖 API 方案',()=>save(true),'↥');over.disabled=profile?.origin!=='local';bar.append(over);
         const del=button('删除 API 方案',async()=>{if(await ask('删除此 API 方案？','',true))await act('api.remove',{id:s.apiSelection});},'⌫');del.disabled=profile?.origin!=='local';bar.append(del);api.append(bar);
         api.append(field('URL',draft.apiUrl??profile?.apiUrl,v=>draft.apiUrl=v));
-        const key=field('Key',draft.key||'',v=>draft.key=v,'password');key.querySelector('input').placeholder=profile?.hasKey?'已保存，留空保留原密钥':'输入新密钥';key.append(button('显示或隐藏密钥',()=>{const input=key.querySelector('input');input.type=input.type==='password'?'text':'password';},'◉'));api.append(key);
-        const model=field('模型',draft.model??profile?.model,v=>draft.model=v);model.querySelector('input').setAttribute('list','model-list');model.append(button('拉取模型',async()=>{ui.models=await act('api.models',{},false);renderView(liveRoot,state,ui,act);}));api.append(model);
+        const key=field('Key',draft.key||'',v=>draft.key=v,'password');
+        key.querySelector('input').placeholder=profile?.keyState==='current'?'留空使用酒馆当前连接的密钥':profile?.hasKey?'已关联保存的密钥，留空保留':'输入新密钥';
+        const keyHint=el('p','hint');keyHint.setAttribute('role','status');keyHint.dataset.keyStatus='';
+        const showKeyStatus=()=>{keyHint.textContent=draft.key?'已填写新密钥，尚未保存；拉取模型会使用此密钥。':profile?.keyState==='current'?'密钥由酒馆当前连接提供；拉取模型时验证连接。':profile?.hasKey?'已关联保存的密钥；拉取模型时验证是否可用。':'此方案未关联已保存的密钥，请填写后新建或覆盖方案。';};
+        key.querySelector('input').addEventListener('input',event=>{draft.key=event.target.value;showKeyStatus();});showKeyStatus();
+        key.append(button('显示或隐藏密钥',()=>{const input=key.querySelector('input');input.type=input.type==='password'?'text':'password';},'◉'));api.append(key,keyHint);
+        const model=field('模型',draft.model??profile?.model,v=>draft.model=v);model.querySelector('input').setAttribute('list','model-list');
+        const paintModels=()=>{
+            const action=liveRoot.querySelector('[data-model-action]'),feedback=liveRoot.querySelector('[data-model-feedback]'),list=liveRoot.querySelector('#model-list');
+            if(action){action.disabled=!!ui.modelRequest;action.textContent=ui.modelRequest?'正在拉取…':'拉取模型';action.setAttribute('aria-busy',String(!!ui.modelRequest));}
+            if(feedback){feedback.textContent=ui.modelFeedback?.text||'';feedback.className=ui.modelFeedback?.error?'error':'hint';}
+            if(list){list.replaceChildren();for(const name of ui.models||[]){const option=el('option');option.value=name;list.append(option);}}
+        };
+        const modelButton=button('拉取模型',async()=>{
+            if(ui.modelRequest)return;
+            const request={sourceId:s.apiSelection};ui.modelRequest=request;ui.models=[];ui.modelFeedback={text:'正在连接当前方案并拉取模型…'};paintModels();
+            try{
+                const models=await act('api.models',{sourceId:request.sourceId,apiUrl:draft.apiUrl,model:draft.model,key:draft.key,additional:draft.additional},false,{throwOnError:true});
+                if(ui.modelRequest!==request)return;
+                if(!Array.isArray(models)||!models.length)throw Error('没有获取到可用模型，请检查当前方案；也可手动输入模型名称。');
+                ui.models=models;ui.modelFeedback={text:`已获取 ${models.length} 个模型，可在模型输入框中选择或输入。`};
+            }catch(error){if(ui.modelRequest===request)ui.modelFeedback={text:error.message||'拉取模型失败，请检查当前方案。',error:true};}
+            finally{if(ui.modelRequest===request){ui.modelRequest=null;paintModels();}}
+        });
+        modelButton.dataset.modelAction='';modelButton.disabled=!!ui.modelRequest;modelButton.textContent=ui.modelRequest?'正在拉取…':'拉取模型';modelButton.setAttribute('aria-busy',String(!!ui.modelRequest));model.append(modelButton);api.append(model);
         const list=el('datalist');list.id='model-list';for(const name of ui.models||[]){const o=el('option');o.value=name;list.append(o);}api.append(list);
+        const modelFeedback=el('p',ui.modelFeedback?.error?'error':'hint',ui.modelFeedback?.text||'');modelFeedback.dataset.modelFeedback='';modelFeedback.setAttribute('role','status');modelFeedback.setAttribute('aria-live','polite');api.append(modelFeedback);
         const numbers=el('div','two-fields');numbers.append(field('最大输出',s.maxTokens,v=>act('settings.update',{maxTokens:v}),'number'),field('超时秒数',s.timeoutSeconds,v=>act('settings.update',{timeoutSeconds:v}),'number'));numbers.classList.add('api-limits');numbers.append(button('附加参数',()=>editAdditional(draft.additional??profile?.additional,value=>{draft.additional=value;})));api.append(numbers);
 
         api.append(check('流式输出规划',s.stream,v=>act('settings.update',{stream:v})));root.append(section('通用设置',api));

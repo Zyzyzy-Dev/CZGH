@@ -1,5 +1,5 @@
 /* API 方案宿主服务：外部只读、自有方案副本持久化、禁止改变活动密钥。 */
-import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.5.6';
+import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.5.7-dev.1';
 
 export function createApiSchemes(host) {
     let queue = Promise.resolve();
@@ -14,11 +14,13 @@ export function createApiSchemes(host) {
     };
     return {
         async list() {
-            return [{ id: 'current', name: '酒馆当前连接', origin: 'current', additional:structuredClone(host.currentAdditional?.()||{}) }, ...host.external().map(p => ({ id: `external:${p.id}`, name: p.name, origin: 'external', additional:structuredClone(p.additional||{}), model: p.model, apiUrl: p.connection?.custom_url || '' })), ...read().schemes.api.map(p => ({ id: `local:${p.id}`, name: p.name, origin: 'local', additional:structuredClone(p.payload.additional||{}), model: p.payload.model, apiUrl: p.payload.connection?.custom_url || p.payload.apiUrl || '', hasKey: !!(p.payload.secretId || p.payload.keyRef) }))];
+            const metadata = p => ({ additional:structuredClone(p.additional||{}), model:p.model, apiUrl:p.connection?.custom_url||p.apiUrl||'', hasKey:!!(p.secretId||p.keyRef) });
+            const current = host.currentSummary?.() || {};
+            return [{ ...metadata(current), id:'current', name:'酒馆当前连接', origin:'current', keyState:'current', additional:structuredClone(host.currentAdditional?.()||current.additional||{}) }, ...host.external().map(p => ({ ...metadata(p), id:`external:${p.id}`, name:p.name, origin:'external' })), ...read().schemes.api.map(p => ({ ...metadata(p.payload), id:`local:${p.id}`, name:p.name, origin:'local' }))];
         },
-        async resolve(selection) {
+        async resolve(selection, options) {
             let config;
-            if (selection === 'current') config = await host.current();
+            if (selection === 'current') config = await host.current(options);
             else if (selection?.startsWith('external:')) config = host.external().find(p => p.id === selection.slice(9));
             else config = read().schemes.api.find(p => p.id === localId(selection))?.payload;
             if (!config) throw new Error('API 方案已删除或当前连接不可用。');
@@ -55,9 +57,9 @@ export function createApiSchemes(host) {
                 await release(oldRef, next);
             });
         },
-        async models(config) {
+        async models(config, options) {
             if (!host.models) throw new Error('当前连接不支持拉取模型，可手动输入。');
-            return host.models(structuredClone(config));
+            return host.models(structuredClone(config), options);
         },
     };
 }

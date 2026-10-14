@@ -39,3 +39,16 @@ test('local keys persist by reference, survive service recreation and are remove
     assert.deepEqual(state,before);assert.equal(keys.size,1);fail=false;
     await api.remove('local:'+copy.id);assert.equal(keys.size,0);
 });
+
+test('API metadata identifies saved external credentials without exposing key values or references',async()=>{
+    const external=[{id:'e',name:'外部',source:'custom',model:'external-model',secretId:'secret-ref',key:'must-not-leak',connection:{custom_url:'https://example.com/v1'}},{id:'empty',name:'未保存'}];
+    const api=createApiSchemes({read:()=>migrateSchemes({}),external:()=>external,currentSummary:()=>({model:'current-model',connection:{custom_url:'https://current.example/v1'}})});
+    const profiles=await api.list();
+    assert.equal(profiles.find(p=>p.id==='external:e').hasKey,true);
+    assert.equal(profiles.find(p=>p.id==='external:empty').hasKey,false);
+    assert.equal(profiles[0].keyState,'current');
+    assert.equal(profiles[0].model,'current-model');
+    assert.equal(profiles[0].apiUrl,'https://current.example/v1');
+    assert.ok(!JSON.stringify(profiles).includes('must-not-leak'));
+    assert.ok(!JSON.stringify(profiles).includes('secret-ref'));
+});

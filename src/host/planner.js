@@ -1,10 +1,10 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.6';
-import { createId } from '../bridge/id.js?v=0.5.6';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.6';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.6';
-import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.6';
-export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, continueRequest = () => false, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
+import { readPlanResponse } from './stream.js?v=0.5.7-dev.1';
+import { createId } from '../bridge/id.js?v=0.5.7-dev.1';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.7-dev.1';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.7-dev.1';
+import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.7-dev.1';
+export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, continueRequest = () => false, onNewPlan = () => {}, onPlanCompleted = () => {}, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
 const ctx = getContext;
@@ -36,8 +36,8 @@ function abortPending() {
     const run=pending;if(!run)return;pending=null;run.controller.abort();
     onDiscard(run.requestId);
     if(run.identity===chatIdentity()){
-        onProgress({...run.record,phase:'cancelled',error:'规划已停止，未注入正文。'});
-        status('规划已停止；正文请求已取消。');
+        onProgress({...run.record,phase:run.completed?'ready':'cancelled',error:run.completed?'':'规划已停止，未注入正文。'});
+        status(run.completed?'正文已停止，已完成的规划仍保留。':'规划已停止；正文请求已取消。');
     }
 }
 
@@ -90,7 +90,7 @@ async function onRequest(data) {
     }
     const config = structuredClone(settings());
     const original = structuredClone(data.messages);
-    const run = { controller: new AbortController(), identity: chatIdentity(), requestId: createId() };
+    const run = { controller: new AbortController(), identity: chatIdentity(), requestId: createId(), snapshot:chatContentSnapshot() };
     pending = run;
     const record = { requestId: run.requestId, chatId: run.identity, expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1)-1 : (ctx().chat?.length || 0), text: '', phase: 'preparing', mainStream: data.stream };
     run.record=record;
@@ -99,6 +99,9 @@ async function onRequest(data) {
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
     try {
+        const started = onNewPlan();
+        if(started)await started;
+        run.controller.signal.throwIfAborted();
         let contextMessages = original;
         let prepared;
         if (prepare) {
@@ -124,7 +127,15 @@ async function onRequest(data) {
             onDiagnostics(diagnostics);
         });
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
+        if(chatContentSnapshot()!==run.snapshot)throw new Error('聊天内容已变化，请重新生成规划。');
         clearTimeout(timer);
+        const completedRecord = { version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: record.expectedMessageId, nextWorldState: prepared?.nextWorldState };
+        const writerMessages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
+        run.completed = true;
+        record.text = plan;
+        await onPlanCompleted(completedRecord, writerMessages.at(-1));
+        run.controller.signal.throwIfAborted();
+        if(pending!==run||run.identity!==chatIdentity())return;
         if(config.autoReply===false){
             previewNode.value=`${config.openTag}\n${plan}\n${config.closeTag}`;
             record.text=plan;record.phase='awaiting';
@@ -139,8 +150,8 @@ async function onRequest(data) {
             if(pending!==run||run.identity!==chatIdentity()||chatContentSnapshot()!==chatSnapshot)throw Error('聊天内容已变化，请重新生成规划。');
         }
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
-        data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
-        onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState }, data.messages.at(-1));
+        data.messages = writerMessages;
+        onPlanReady(completedRecord, data.messages.at(-1));
         previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
         status(`规划已注入（${plan.length} 字符），正在生成正文。正文请求流式：${data.stream === true ? '开启' : data.stream === false ? '关闭' : '未提供'}。`);
     } catch (error) {
@@ -178,6 +189,8 @@ return {
  getState: () => ({...state,awaitingReply:!!pending?.resume}),
  resume: () => {const run=pending;if(!run?.resume||run.identity!==chatIdentity())return false;const resume=run.resume;run.resume=null;resume();onState({...state,awaitingReply:false});return true;},
  getDiagnostics: () => diagnostics ? structuredClone(diagnostics) : null,
+ report: text => status(text),
+ restore: record => {previewNode.value=record ? `${record.openTag}\n${record.text}\n${record.closeTag}` : '';status(record ? '已恢复本聊天最新完成的规划。' : '');},
  isPlanning: () => !!pending && !pending.resume,
  setKey: value => { apiKey = value.trim(); },
  stop: () => { if(pending){abortPending();stopGeneration();} },
