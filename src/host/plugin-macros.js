@@ -1,6 +1,6 @@
 /* 柏宝书公开只读宏适配：仅物化已选资料直接引用的宏，不扫描插件私有数据库。 */
-import { resolvePreset } from '../planning/presets.js?v=0.5.7-dev.1';
-import { entryKey } from '../planning/world-info.js?v=0.5.7-dev.1';
+import { resolvePreset } from '../planning/presets.js?v=0.5.7-dev.2';
+import { entryKey } from '../planning/world-info.js?v=0.5.7-dev.2';
 export async function materializePluginMacros(snapshot, selection, api) {
     const result=structuredClone(snapshot);result.macroEnvironment.pluginMacros={};
     if(!selection.compatibilityIds?.includes('baibai'))return result;

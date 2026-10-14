@@ -1,7 +1,7 @@
 /* 已完成规划随用户楼层保存；只有插件按钮发起的本轮请求可复用。 */
-import { createId } from '../bridge/id.js?v=0.5.7-dev.1';
-import { fingerprint } from './message-plans.js?v=0.5.7-dev.1';
-import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7-dev.1';
+import { createId } from '../bridge/id.js?v=0.5.7-dev.2';
+import { fingerprint } from './message-plans.js?v=0.5.7-dev.2';
+import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7-dev.2';
 
 const KEY = 'czghCreativePlanningDraft';
 // This is an edit detector, not an authentication or security boundary.
@@ -44,8 +44,8 @@ export function createReplyRecovery(host) {
         available: () => !launching && !!valid(),
         view() {
             const record=entry();if(!record||record.chatId!==host.identity())return null;
-            const {text,openTag,closeTag,createdAt,requestId,expectedMessageId,chatId}=record;
-            return {text,openTag,closeTag,createdAt,requestId,expectedMessageId,chatId,
+            const {text,openTag,closeTag,multiChain,createdAt,requestId,expectedMessageId,chatId}=record;
+            return {text,openTag,closeTag,multiChain,createdAt,requestId,expectedMessageId,chatId,
                 phase:'ready',stale:!valid(),canResume:!launching&&!host.busy()&&!!valid()};
         },
         async completed(record, message) {

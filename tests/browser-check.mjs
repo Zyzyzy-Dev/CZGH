@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { checkUiRegressions } from './ui-regressions.mjs';
 import { checkApiUi } from './api-ui.mjs';
 import { checkReplyUi } from './reply-ui.mjs';
+import { checkMultiChainUi, checkMultiChainFlow } from './multi-chain-ui.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
 const servingRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -76,7 +77,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.7-dev\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.7-dev\.2$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -127,6 +128,7 @@ try{
  await syntax.locator('summary').click();
  await syntax.getByLabel('EJS 模板兼容（ST-Prompt-Template）',{exact:true}).waitFor({state:'visible'});
  await frame.locator('summary').filter({hasText:/^高级设置$/}).click();
+ await checkMultiChainUi(page,frame);
  await frame.getByRole('button',{name:'编辑插件内置提示词',exact:true}).click();
  const editor=frame.getByRole('dialog',{name:'编辑插件内置提示词',exact:true});
  const originalPrompt=await editor.getByLabel('提示词内容',{exact:true}).inputValue();
@@ -503,6 +505,7 @@ try{
  assert.ok(!(await frame.locator('#request-view').textContent()).includes('tt-local-test-key'));
  assert.ok(!(await page.evaluate(()=>localStorage.getItem('test-settings'))).includes('tt-local-test-key'));
  await checkReplyUi(page,frame,()=>plannerCalls);
+ await checkMultiChainFlow(page);
  assert.deepEqual(errors,[]);
  console.log('PASS browser: persistent preset/world/API selection, model loading/errors/draft credentials, completed-plan restoration, repeated body retry without replanning, native regenerate replanning, partial-stream retry, TT tools, UI isolation and mobile bounds; no page errors.');
 }finally{releaseStream?.();await browser?.close();server.close();}

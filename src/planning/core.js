@@ -1,9 +1,11 @@
 /* 规划标签识别、提示构建、结果校验和配置迁移。 */
+import { resolveMultiPlanningTags, extractMultiPlan } from './multi-chain.js?v=0.5.7-dev.2';
 const previousPlannerInstruction = '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备和创作规划，随后会由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。';
 const previousWriterInstruction = '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。';
 const previousDirectWriterInstruction = "你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，继续完成正文和要求的其他成品，无需重新输出规划区块。";
 export const defaults = Object.freeze({
     autoReply: true,
+    multiChain: false,
     enabled: false,
     stream: false,
     templateCompat: false,
@@ -78,6 +80,7 @@ export const promptDefaults = Object.freeze({
 // Conservative recognition of explicit format instructions, not past assistant output.
 // Ambiguous/unsupported layouts require a manual override; never silently guess Abstract.
 export function resolvePlanningTags(messages, settings) {
+    if (settings.multiChain === true) return resolveMultiPlanningTags(messages);
     if (settings.tagMode === 'manual') return { openTag: settings.openTag, closeTag: settings.closeTag };
     const candidates = new Map();
     const cue = /思维链|写作准备|创作准备|规划|思考|推演|reasoning|planning|thinking/i;
@@ -164,14 +167,18 @@ export function parseRules(raw) {
 }
 
 export function planningMessages(messages, settings) {
+    const format = settings.multiChain === true
+        ? `请按本次输入要求分别输出各规划区块，保留各自的标签与先后顺序：${settings.planningTags.map(pair => `${pair.openTag}…${pair.closeTag}`).join('、')}。条件性区块按原条件执行，不因列出标签就强制生成；不要把全部规划合并到其中一个区块。`
+        : `请将完整规划放入当前预设指定的标签中：${settings.openTag}规划内容${settings.closeTag}。`;
     return [...structuredClone(messages), { role: 'system', content:
         `${settings.plannerPrompt ?? `${settings.plannerInstruction}\n\n${planningGuidance}`}
-请将完整规划放入当前预设指定的标签中：${settings.openTag}规划内容${settings.closeTag}。` }];
+${format}` }];
 }
 
 export function extractPlan(text, settings, finishReason) {
     if (finishReason === 'length') throw new Error('规划被输出额度截断，请提高额度后重试。');
     if (typeof text !== 'string') throw new Error('规划 API 未返回文本。');
+    if (settings.multiChain === true) return extractMultiPlan(text, settings.planningTags);
     // Inline code quoting an exact delimiter is documentation, not a boundary.
     // Preserve offsets and original text; do not exempt arbitrary code blocks.
     let boundaries = text;
@@ -190,6 +197,10 @@ export function extractPlan(text, settings, finishReason) {
     return plan;
 }
 
+export function formatPlan(plan, settings) {
+    return settings.multiChain === true ? plan : `${settings.openTag}\n${plan}\n${settings.closeTag}`;
+}
+
 export function writingMessages(messages, plan, settings) {
     const result = structuredClone(messages);
     const rules = parseRules(settings.rules);
@@ -197,7 +208,7 @@ export function writingMessages(messages, plan, settings) {
         if (!['system', 'developer'].includes(message.role) || typeof message.content !== 'string') continue;
         for (const rule of rules) message.content = message.content.split(rule.find).join(rule.replace);
     }
-    result.push({ role: 'system', content: `${settings.writerPrompt ?? `${settings.writerInstruction}\n${writingGuidance}`}\n\n【本轮创作规划】\n${settings.openTag}\n${plan}\n${settings.closeTag}` });
+    result.push({ role: 'system', content: `${settings.writerPrompt ?? `${settings.writerInstruction}\n${writingGuidance}`}\n\n【本轮创作规划】\n${formatPlan(plan, settings)}` });
     return result;
 }
 

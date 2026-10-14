@@ -1,11 +1,11 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.7-dev.1';
-import { entryKey } from '../planning/world-info.js?v=0.5.7-dev.1';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.5.7-dev.1';
-import { promptDefaults } from '../planning/core.js?v=0.5.7-dev.1';
-import { editAdditional } from './additional-editor.js?v=0.5.7-dev.1';
-import { editPrompt } from './prompt-editor.js?v=0.5.7-dev.1';
-import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.7-dev.1';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.5.7-dev.2';
+import { entryKey } from '../planning/world-info.js?v=0.5.7-dev.2';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.5.7-dev.2';
+import { promptDefaults } from '../planning/core.js?v=0.5.7-dev.2';
+import { editAdditional } from './additional-editor.js?v=0.5.7-dev.2';
+import { editPrompt } from './prompt-editor.js?v=0.5.7-dev.2';
+import { isDatabaseMemoEntry } from '../planning/database-memory.js?v=0.5.7-dev.2';
 export function renderView(root, state, ui, act) {
     const samePage=root.dataset.page===ui.page;
     const scrollTop=samePage?root.scrollTop:0;
@@ -108,8 +108,12 @@ function buildView(root, state, ui, act, liveRoot) {
         syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
         root.append(section('提示词语法',syntax,true));
         const display=el('div','section-body');display.append(check('在用户消息下显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
-        const advanced=el('div','section-body advanced-settings');advanced.append(check('规划完成后自动生成正文',s.autoReply,v=>act('settings.update',{autoReply:v})));advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
-        if(s.tagMode==='manual')advanced.append(field('开始标签',s.openTag,v=>act('settings.update',{openTag:v})),field('结束标签',s.closeTag,v=>act('settings.update',{closeTag:v})));
+        const advanced=el('div','section-body advanced-settings');advanced.append(check('规划完成后自动生成正文',s.autoReply,v=>act('settings.update',{autoReply:v})));
+        advanced.append(check('多思维链',!!s.multiChain,v=>act('settings.update',{multiChain:v})),el('p','hint','适用于分别输出多种规划的预设；按原顺序保留各规划区块。'));
+        if(!s.multiChain){
+            advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
+            if(s.tagMode==='manual')advanced.append(field('开始标签',s.openTag,v=>act('settings.update',{openTag:v})),field('结束标签',s.closeTag,v=>act('settings.update',{closeTag:v})));
+        }
         advanced.append(el('h3','','内置提示词设置'));
         for(const [key,title,description] of [
             ['plannerPrompt','插件内置提示词','发送给规划 API 的完整引导。当前预设的规划标签要求由插件自动附加，无需填写宏。修改后点击完成保存；恢复默认仅替换当前草稿。'],

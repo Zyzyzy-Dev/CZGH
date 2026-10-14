@@ -16,6 +16,29 @@ function setup() {
 }
 const handoff={role:'system',content:'写作要求\n<Think>完整规划</Think>'};
 
+test('multiple planning blocks survive completion, chat restoration and failed body retries after mode changes',async t=>{
+    const listeners={},chats={a:[{is_user:true,mes:'本轮输入'}],b:[{is_user:true,mes:'另一聊天'}]};
+    const context={chatId:'a',chat:chats.a,extensionSettings:{czgh_external_planner:{enabled:true,multiChain:true,autoReply:true}},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(e,f)=>listeners[e]=f}};
+    let calls=0,saves=0,ready=[];
+    const identity=()=>JSON.stringify([context.chatId,undefined,undefined]);
+    const host={identity,messages:()=>context.chat,busy:()=>false,save:async()=>saves++,stop(){},status(){},ready:(r,m)=>ready.push([r,m])};
+    const recovery=createReplyRecovery(host);
+    const text='<战斗思考>战斗安排</战斗思考>\n\n<thinking>人物安排</thinking>';
+    t.mock.method(globalThis,'fetch',async()=>{calls++;return new Response(JSON.stringify({choices:[{message:{content:text+'\n<content>不应注入的正文</content>'},finish_reason:'stop'}]}));});
+    const planner=createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){},prepare:async()=>({messages:[{role:'system',content:'<thinking>剧情规划</thinking>\n<战斗思考>战斗规划</战斗思考>'}],request:{model:'test'}}),continueRequest:data=>recovery.consume(data),onPlanCompleted:(r,m)=>recovery.completed(r,m)});
+    const data={type:'normal',messages:[{role:'user',content:'本轮输入'}]};await listeners.request(data);
+    assert.equal(calls,1);assert.equal(saves,1);assert.equal(recovery.view().multiChain,true);assert.equal(recovery.view().text,text);
+    assert.equal(planner.getState().preview,text);
+    const frozen=structuredClone(data.messages.at(-1));assert.ok(frozen.content.endsWith(text));assert.doesNotMatch(frozen.content,/不应注入/);
+    context.chatId='b';context.chat=chats.b;listeners.chat();recovery.switched();assert.equal(recovery.view(),null);
+    context.chatId='a';context.chat=chats.a;listeners.chat();recovery.switched();
+    context.extensionSettings.czgh_external_planner.multiChain=false;
+    planner.restore(recovery.view());assert.equal(planner.getState().preview,text);
+    host.generate=async type=>{recovery.started(type,{},false);const retry={type,messages:[{role:'system',content:'正文原始要求'}]};await listeners.request(retry);assert.deepEqual(retry.messages.at(-1),frozen);throw Error('body 503');};
+    assert.equal(await recovery.resume(),false);assert.equal(await recovery.resume(),false);
+    assert.equal(calls,1);assert.equal(ready.length,2);assert.ok(ready.every(([r])=>r.multiChain&&r.text===text));
+});
+
 test('completed plan is saved before manual waiting, and timeout never discards it',async t=>{
     const listeners={},context={chatId:'a',chat:[{is_user:true,mes:'用户输入'}],extensionSettings:{czgh_external_planner:{enabled:true,autoReply:false,timeoutSeconds:10,maxTokens:6000}},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(e,f)=>listeners[e]=f}};
     const completed=[];let injected=0;

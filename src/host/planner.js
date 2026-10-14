@@ -1,9 +1,9 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.7-dev.1';
-import { createId } from '../bridge/id.js?v=0.5.7-dev.1';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.7-dev.1';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.7-dev.1';
-import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.7-dev.1';
+import { readPlanResponse } from './stream.js?v=0.5.7-dev.2';
+import { createId } from '../bridge/id.js?v=0.5.7-dev.2';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, formatPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.7-dev.2';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.7-dev.2';
+import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.7-dev.2';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, continueRequest = () => false, onNewPlan = () => {}, onPlanCompleted = () => {}, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -121,7 +121,8 @@ async function onRequest(data) {
         Object.assign(config, resolvePlanningTags(contextMessages, config));
         validateSettings(config);
         if (unresolvedBaiBaiMacros(contextMessages)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
-        status(`正在按 ${config.openTag}…${config.closeTag} 生成本轮规划；完成后自动继续正文…`);
+        const tagDescription = config.multiChain ? config.planningTags.map(pair => pair.openTag).join('、') : `${config.openTag}…${config.closeTag}`;
+        status(`正在按 ${tagDescription} 生成本轮规划；${config.autoReply === false ? '完成后等待生成正文' : '完成后自动继续正文'}…`);
         const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal, text => { if(pending!==run||run.identity!==chatIdentity())return;previewNode.value=text;record.text = text; record.phase = 'streaming'; onProgress(record); }, body=>{
             diagnostics={requestId:run.requestId,createdAt:new Date().toISOString(),model:body.model,stream:body.stream,maxTokens:body.max_tokens,sourceManifest:prepared?.sourceManifest||null,messages:structuredClone(body.messages)};
             onDiagnostics(diagnostics);
@@ -129,7 +130,7 @@ async function onRequest(data) {
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
         if(chatContentSnapshot()!==run.snapshot)throw new Error('聊天内容已变化，请重新生成规划。');
         clearTimeout(timer);
-        const completedRecord = { version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: record.expectedMessageId, nextWorldState: prepared?.nextWorldState };
+        const completedRecord = { version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, multiChain: config.multiChain === true, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: record.expectedMessageId, nextWorldState: prepared?.nextWorldState };
         const writerMessages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
         run.completed = true;
         record.text = plan;
@@ -137,7 +138,7 @@ async function onRequest(data) {
         run.controller.signal.throwIfAborted();
         if(pending!==run||run.identity!==chatIdentity())return;
         if(config.autoReply===false){
-            previewNode.value=`${config.openTag}\n${plan}\n${config.closeTag}`;
+            previewNode.value=formatPlan(plan, config);
             record.text=plan;record.phase='awaiting';
             const chatSnapshot=chatContentSnapshot();
             await new Promise((resolve,reject)=>{
@@ -152,7 +153,7 @@ async function onRequest(data) {
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writerMessages;
         onPlanReady(completedRecord, data.messages.at(-1));
-        previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
+        previewNode.value = formatPlan(plan, config);
         status(`规划已注入（${plan.length} 字符），正在生成正文。正文请求流式：${data.stream === true ? '开启' : data.stream === false ? '关闭' : '未提供'}。`);
     } catch (error) {
         if(pending!==run||run.identity!==chatIdentity())return;
@@ -190,7 +191,7 @@ return {
  resume: () => {const run=pending;if(!run?.resume||run.identity!==chatIdentity())return false;const resume=run.resume;run.resume=null;resume();onState({...state,awaitingReply:false});return true;},
  getDiagnostics: () => diagnostics ? structuredClone(diagnostics) : null,
  report: text => status(text),
- restore: record => {previewNode.value=record ? `${record.openTag}\n${record.text}\n${record.closeTag}` : '';status(record ? '已恢复本聊天最新完成的规划。' : '');},
+ restore: record => {previewNode.value=record ? formatPlan(record.text, record) : '';status(record ? '已恢复本聊天最新完成的规划。' : '');},
  isPlanning: () => !!pending && !pending.resume,
  setKey: value => { apiKey = value.trim(); },
  stop: () => { if(pending){abortPending();stopGeneration();} },

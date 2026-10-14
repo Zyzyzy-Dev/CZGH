@@ -1,6 +1,7 @@
 /* 楼内规划视图：安全文本渲染、五项主题接收以及高度上报。 */
-import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.5.7-dev.1';
-import { appearanceIcon, generationIcon, setIcon } from './icons.js?v=0.5.7-dev.1';
+import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.5.7-dev.2';
+import { appearanceIcon, generationIcon, setIcon } from './icons.js?v=0.5.7-dev.2';
+import { formatPlan } from '../planning/core.js?v=0.5.7-dev.2';
 appearanceIcon(document.querySelector('#appearance'));
 setIcon(document.querySelector('#resume'),'reply');
 document.querySelector('#resume').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();document.querySelector('#resume').disabled=true;parent.postMessage({channel:CHANNEL,type:'resume'},location.origin);});
@@ -21,7 +22,7 @@ window.addEventListener('message',event=>{
         document.querySelector('#phase').textContent=record.phase?`· ${labels[record.phase]||record.phase}`:'';
         document.querySelector('pre').textContent=record.phase
             ? [record.text,record.error?`错误：${record.error}`:!record.text?labels[record.phase]:''].filter(Boolean).join('\n\n')
-            : `${record.openTag}\n${record.text}\n${record.closeTag}`;
+            : formatPlan(record.text, record);
         document.querySelector('#stale').textContent=record.stale?'· 历史规划（聊天内容已变化）':'';
     }
     requestAnimationFrame(resize);

@@ -1,5 +1,5 @@
 /* 模型列表：只使用所选方案或本次填写的凭据，提供有时限且不回显密钥的结果。 */
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.7-dev.1';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.5.7-dev.2';
 
 export async function withModelListTimeout(action, timeoutMs = 20000) {
     const controller = new AbortController();
