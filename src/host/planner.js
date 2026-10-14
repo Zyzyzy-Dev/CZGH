@@ -1,9 +1,9 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.5.7-dev.2';
-import { createId } from '../bridge/id.js?v=0.5.7-dev.2';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, formatPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.7-dev.2';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.7-dev.2';
-import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.7-dev.2';
+import { readPlanResponse } from './stream.js?v=0.5.7';
+import { createId } from '../bridge/id.js?v=0.5.7';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, formatPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.5.7';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.5.7';
+import { clonePlanningRequest } from '../planning/current-request.js?v=0.5.7';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, continueRequest = () => false, onNewPlan = () => {}, onPlanCompleted = () => {}, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';

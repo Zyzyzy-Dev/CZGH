@@ -1,5 +1,5 @@
 /* 规划标签识别、提示构建、结果校验和配置迁移。 */
-import { resolveMultiPlanningTags, extractMultiPlan } from './multi-chain.js?v=0.5.7-dev.2';
+import { resolveMultiPlanningTags, extractMultiPlan } from './multi-chain.js?v=0.5.7';
 const previousPlannerInstruction = '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备和创作规划，随后会由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。';
 const previousWriterInstruction = '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。';
 const previousDirectWriterInstruction = "你的同事已经完成了本轮的写作准备与创作规划，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及此创作规划，继续完成正文和要求的其他成品，无需重新输出规划区块。";

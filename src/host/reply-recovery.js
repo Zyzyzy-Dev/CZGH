@@ -1,7 +1,7 @@
 /* 已完成规划随用户楼层保存；只有插件按钮发起的本轮请求可复用。 */
-import { createId } from '../bridge/id.js?v=0.5.7-dev.2';
-import { fingerprint } from './message-plans.js?v=0.5.7-dev.2';
-import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7-dev.2';
+import { createId } from '../bridge/id.js?v=0.5.7';
+import { fingerprint } from './message-plans.js?v=0.5.7';
+import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7';
 
 const KEY = 'czghCreativePlanningDraft';
 // This is an edit detector, not an authentication or security boundary.

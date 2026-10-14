@@ -1,5 +1,5 @@
 /* 生成事件关联：流式结束可能早于消息收到，按请求、聊天、楼号与生成类型绑定。 */
-import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7-dev.2';
+import { chatPrefix, completeToolSpan, isToolCall, isToolResult } from '../planning/tool-history.js?v=0.5.7';
 export function createGenerationBinding(host) {
     let staged, prefix, continuationMessage, candidate, continuing = false, ended = false;
     const discard=()=>{if(staged)host.discard(staged.requestId);staged=null;prefix=null;continuationMessage=null;candidate=null;continuing=false;ended=false;};
