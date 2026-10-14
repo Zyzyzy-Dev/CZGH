@@ -1,5 +1,5 @@
 /* iframe 通信协议：限定消息来源、允许的设置字段和五个主题变量。 */
-import { defaults, promptDefaults } from '../planning/core.js?v=0.5.5';
+import { defaults, promptDefaults } from '../planning/core.js?v=0.5.6-dev.1';
 export const CHANNEL = 'creative-planning-v1';
 export const THEME_KEYS = Object.freeze(['--SmartThemeBorderColor', '--SmartThemeBlurTintColor', '--SmartThemeBodyColor', '--mainFontFamily', '--monoFontFamily']);
 export function themeSnapshot(style) {

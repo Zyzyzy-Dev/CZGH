@@ -10,6 +10,17 @@ function agentMarkerSnapshot(trigger='normal') {
     return {id:'s',chatId:'c',trigger,maxContext:2000,worldSettings:{},character:{description:'角色资料'},macroEnvironment:{user:'玩家',char:'角色'},currentPreset:'P',presets:{P:{prompts,prompt_order:[{character_id:100001,order:prompts.map(({identifier})=>({identifier,enabled:true}))}]}},bindings:{},books:{},history:[{role:'user',content:'本轮输入'}],injections:{}};
 }
 
+test('unclosed source text survives independent context assembly without losing later messages',async()=>{
+    const snapshot=agentMarkerSnapshot();
+    snapshot.presets.P.prompts[0].content='规划规则 {{user}}\n示例 {{\n保留预设末尾';
+    snapshot.character.description='角色资料 {{char}\n保留角色末尾';
+    snapshot.injections.sp_outline_step={value:'注入 {{\n保留注入末尾',position:1,depth:0,role:0};
+    const before=structuredClone(snapshot);
+    const result=await buildPlanningContext({snapshot,selection:{compatibilityIds:['seven-days']},tokenize:async s=>s.length});
+    assert.deepEqual(result.messages.map(m=>m.content),['规划规则 玩家\n示例 {{\n保留预设末尾','角色资料 {{char}\n保留角色末尾','本轮输入','注入 {{\n保留注入末尾']);
+    assert.equal(result.diagnostics.some(d=>d.blocking),false);assert.deepEqual(snapshot,before);
+});
+
 for(const trigger of ['normal','regenerate','swipe'])test(`${trigger} planning excludes TauriTavern Agent-only markers without editing the preset`,async()=>{
     const snapshot=agentMarkerSnapshot(trigger),before=structuredClone(snapshot);
     const result=await buildPlanningContext({snapshot,selection:{},tokenize:async s=>s.length});

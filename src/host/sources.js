@@ -1,7 +1,7 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.5.5';
-import { projectHistory } from '../planning/tool-history.js?v=0.5.5';
-import { captureAuthorNote } from '../planning/author-note.js?v=0.5.5';
+import { createId } from '../bridge/id.js?v=0.5.6-dev.1';
+import { projectHistory } from '../planning/tool-history.js?v=0.5.6-dev.1';
+import { captureAuthorNote } from '../planning/author-note.js?v=0.5.6-dev.1';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;

@@ -1,5 +1,5 @@
 /* 浏览器本地密钥仓库：IndexedDB 持久保存，配置只引用随机 ID，不操作酒馆活动密钥。 */
-import { createId } from '../bridge/id.js?v=0.5.5';
+import { createId } from '../bridge/id.js?v=0.5.6-dev.1';
 export function createCredentialStore(indexedDB = globalThis.indexedDB) {
     async function run(mode, action) {
         if (!indexedDB) throw new Error('浏览器不支持本地密钥存储，请使用已有的编辑器方案。');

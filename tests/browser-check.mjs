@@ -74,7 +74,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.5$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.6-dev\.1$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
@@ -482,6 +482,7 @@ try{
  assert.ok(!JSON.stringify(toolFlow.settings).includes('tt-local-test-key'));
  assert.ok(!JSON.stringify(toolFlow.chat).includes('tt-local-test-key'));
  const afterTools=await page.evaluate(async()=>{
+     context.getPresetManager().getPresetList().presets[0].prompts.find(p=>p.identifier==='main').content+='\n示例文字 {{\n未闭合片段之后的要求也必须保留。';
      context.chat.push({is_user:true,mes:'然后往前走'});
      for(const fn of listeners.started||[])await fn('normal',{},false);
      const data={type:'normal',messages:[{role:'assistant',tool_calls:[{id:'old'}]},{role:'tool',tool_call_id:'old',content:'历史结果'},{role:'assistant',content:'上轮正文'},{role:'user',content:'然后往前走'}]};
@@ -491,6 +492,7 @@ try{
  assert.equal(plannerCalls,beforeToolCalls+2);assert.match(afterTools.messages.at(-1).content,/Claude 测试规划/);
  assert.match(JSON.stringify(plannerRequest.messages),/历史工具结果/);
  assert.match(JSON.stringify(plannerRequest.messages),/历史地点：河岸/);
+ assert.ok(plannerRequest.messages.some(m=>m.content.includes('示例文字 {{\n未闭合片段之后的要求也必须保留。')));
  assert.ok(plannerRequest.messages.every(m=>m.role!=='tool'&&!m.tool_calls));
  await page.locator('#czgh-planner-menu').click();
  await frame.getByRole('button',{name:'规划预览',exact:true}).click();

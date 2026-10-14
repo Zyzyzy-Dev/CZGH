@@ -67,7 +67,12 @@ export function expandMacros(text, { snapshot, compatibilityIds = [], variables 
                 if (input.startsWith('{{', end)) { nesting++; end++; }
                 else if (input.startsWith('}}', end)) { if (--nesting === 0) break; end++; }
             }
-            if (nesting) { issue('unresolved-macro', '存在未闭合的宏。', true); return result; }
+            if (nesting) {
+                // The unmatched opener may be literal example text. Preserve the
+                // whole remaining span; don't guess boundaries or execute its children.
+                issue('literal-placeholder', '未闭合的双花括号内容已原样保留。');
+                return result + input.slice(start);
+            }
             const token = parse(input.slice(start + 2, end), depth + 1);
             evaluations++;
             let replacement = replace(token);
