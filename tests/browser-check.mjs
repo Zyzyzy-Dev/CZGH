@@ -74,7 +74,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.6-dev\.1$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.5\.6$/);
  await checkUiRegressions(page,frame);
  // Database memory uses the existing selected world book, with an explicit detection status.
  await page.evaluate(()=>{window.worldComment='ACU-[测试]-TavernDB-ACU-ReadableDataTable';});
